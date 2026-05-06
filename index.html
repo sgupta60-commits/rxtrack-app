@@ -900,6 +900,10 @@ async function getDrsForDate(dateStr) {
 // ═══════════════════════════════════════════════
 async function renderDrGrid(filter='') {
   const wrap = document.getElementById('dr-grid-wrap');
+  if(!wrap) {
+    console.warn('dr-grid-wrap element not found');
+    return;
+  }
   wrap.innerHTML='<div style="text-align:center;padding:28px;color:var(--muted)">⏳ Loading doctors...</div>';
   todayDoctors = await getDrsForDate(selectedDate);
   const filtered = todayDoctors.filter(dr=>
@@ -1449,7 +1453,9 @@ async function showPanel(id,el){
   const mm=document.getElementById('mobile-more-menu');
   if(mm) mm.style.display='none';
   const titles={dashboard:'Dashboard',entry:'Rx Entry',review:'Review & Submit',history:'History',team:'Team Report',admin:'Admin Panel'};
-  document.getElementById('topbar-title').textContent=titles[id]||id;
+  const topbarTitle = document.getElementById('topbar-title');
+  if(topbarTitle) topbarTitle.textContent=titles[id]||id;
+  else console.warn('topbar-title element not found');
   if(id==='entry'){buildDateStrip();await renderDrGrid();updateSubmitBar();}
   if(id==='review'){renderReview();updateSubmitBar();}
   if(id==='history')renderHistory();
