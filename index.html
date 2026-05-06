@@ -983,6 +983,10 @@ function saveRx(){
 // ═══════════════════════════════════════════════
 function updateSubmitBar(){
   const bar=document.getElementById('submit-bar');
+  if(!bar) {
+    console.warn('submit-bar element not found');
+    return;
+  }
   const panel=document.querySelector('.panel.active');
   const id=panel?panel.id:'';
   // ONLY on Rx Entry panel
@@ -1001,7 +1005,9 @@ function updateSubmitBar(){
 //  REVIEW
 // ═══════════════════════════════════════════════
 function renderReview(){
-  document.getElementById('review-date-lbl').textContent=fmtDate(selectedDate);
+  const reviewDateLbl = document.getElementById('review-date-lbl');
+  if(reviewDateLbl) reviewDateLbl.textContent=fmtDate(selectedDate);
+  else console.warn('review-date-lbl element not found');
   const ids=[...new Set([...Object.keys(pendingRx),...allSubmissions.filter(s=>s.date===selectedDate).map(s=>s.drId)])];
   let totalRx=0, rows='';
   ids.forEach(drId=>{
@@ -1069,11 +1075,16 @@ async function finalSubmit(){
 //  DASHBOARD
 // ═══════════════════════════════════════════════
 function renderDashboard(){
+  const dashStats = document.getElementById('dash-stats');
+  if(!dashStats) {
+    console.warn('dash-stats element not found');
+    return;
+  }
   const today=todayStr();
   const todayList=allSubmissions.filter(s=>s.date===today);
   const totalRx=allSubmissions.reduce((a,s)=>a+Object.values(s.rx||{}).reduce((x,y)=>x+y,0),0);
   const todayRx=todayList.reduce((a,s)=>a+Object.values(s.rx||{}).reduce((x,y)=>x+y,0),0);
-  document.getElementById('dash-stats').innerHTML=
+  dashStats.innerHTML=
     `<div class="stat-card accent"><div class="stat-label">Aaj Doctors</div><div class="stat-val">${todayList.length}</div></div>
     <div class="stat-card green"><div class="stat-label">Aaj Rx</div><div class="stat-val">${todayRx}</div></div>
     <div class="stat-card"><div class="stat-label">Total Drs</div><div class="stat-val">${new Set(allSubmissions.map(s=>s.drId)).size}</div></div>
@@ -1095,6 +1106,10 @@ function renderHistory(filter=''){
   let list=[...allSubmissions].sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt));
   if(filter)list=list.filter(s=>(s.drName||'').toLowerCase().includes(filter.toLowerCase())||s.date.includes(filter));
   const el=document.getElementById('history-list');
+  if(!el) {
+    console.warn('history-list element not found');
+    return;
+  }
   if(!list.length){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Koi history nahi.</div></div>';return;}
   el.innerHTML=list.map(s=>{
     const total=Object.values(s.rx||{}).reduce((a,b)=>a+b,0);
@@ -1113,9 +1128,14 @@ function filterHistory(){renderHistory(document.getElementById('hist-search').va
 //  TEAM REPORT (TM sees team, BM sees all)
 // ═══════════════════════════════════════════════
 function renderTeamReport(){
+  const teamMonthLbl = document.getElementById('team-month-lbl');
+  if(!teamMonthLbl) {
+    console.warn('team-month-lbl element not found');
+    return;
+  }
   const now=new Date();
   const monthName=now.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
-  document.getElementById('team-month-lbl').textContent=monthName;
+  teamMonthLbl.textContent=monthName;
 
   const mrMap={};
   allSubmissions.forEach(s=>{
@@ -1184,8 +1204,8 @@ async function renderAdmin(){
   const todaySubs=allSubmissions.filter(s=>s.date===today);
   // Team login/activity status
   const todaySubmitters=new Set(todaySubs.map(s=>s.mrCode));
-  const registeredCodes=new Set(teamProfiles.map(u=>u.empCode));
-  const allTeamMembers=EMPLOYEE_MASTER.filter(e=>e.desig!=='BM');
+  const registeredCodes=new Set((window.teamProfiles||[]).map(u=>u.empCode));
+  const allTeamMembers=window.EMPLOYEE_MASTER||[];
   const todayRx=todaySubs.reduce((a,s)=>a+Object.values(s.rx||{}).reduce((x,y)=>x+y,0),0);
   const totalRx=allSubmissions.reduce((a,s)=>a+Object.values(s.rx||{}).reduce((x,y)=>x+y,0),0);
 
