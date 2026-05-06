@@ -753,7 +753,8 @@ async function initApp() {
   if(menuRole) menuRole.textContent = (u.desig||'') + ' · ' + (u.hq||'');
   document.getElementById('sb-role').textContent = u.desig+' · '+u.hq;
   document.getElementById('sb-code').textContent = 'Code: '+u.empCode;
-  document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const topbarDate = document.getElementById('topbar-date');
+  if(topbarDate) topbarDate.textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
   const isBM = u.role==='admin'||u.desig==='BM';
   const isTM = u.desig==='TM'||u.role==='tm';
@@ -1439,7 +1440,9 @@ async function showPanel(id,el){
 
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  document.getElementById('panel-'+id).classList.add('active');
+  const panel = document.getElementById('panel-'+id);
+  if(panel) panel.classList.add('active');
+  else console.warn('Panel with id "panel-'+id+'" not found');
   if(el) el.classList.add('active');
   // Sync mobile bottom nav
   // Close more menu if open
