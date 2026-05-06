@@ -1,0 +1,1999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>RxTrack — Daily Rx Data Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, query, where }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDzFi9B2zj3dcYOcveTWNXc2Mqqc2GX_uI",
+  authDomain: "rxtrack-cdf82.firebaseapp.com",
+  projectId: "rxtrack-cdf82",
+  storageBucket: "rxtrack-cdf82.firebasestorage.app",
+  messagingSenderId: "881957698490",
+  appId: "1:881957698490:web:51209860a29840afa0bb83"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+window._auth = auth;
+window._db = db;
+window._fbModules = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, doc, setDoc, getDoc, collection, addDoc, getDocs, query, where };
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    try {
+      const snap = await getDoc(doc(db, "users", user.uid));
+      if (snap.exists()) {
+        window._currentUser = { ...snap.data(), uid: user.uid };
+        window.initApp();
+      } else {
+        // Match from EMPLOYEE_MASTER by empCode stored during signup
+        showAuthError('Account data nahi mila. Phir se login karo ya naaya account banao.');
+        await signOut(auth);
+      }
+    } catch(e) {
+      console.error(e);
+      showAuthError('Network error. Page refresh karo.');
+    }
+  }
+});
+</script>
+
+<style>
+:root {
+  --ink:#0A0E1A;--surface:#F4F6FB;--card:#FFFFFF;
+  --accent:#0057FF;--accent2:#00C896;--warn:#FF5722;
+  --muted:#8892A4;--border:#E2E8F4;--radius:16px;
+  --shadow:0 4px 24px rgba(0,87,255,0.08);--shadow-lg:0 12px 48px rgba(0,0,0,0.14);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--ink);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:#c0c8d8;border-radius:10px}
+.screen{display:none;min-height:100vh;animation:fadeIn .3s ease}
+.screen.active{display:flex;flex-direction:column}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* AUTH */
+#screen-auth{background:linear-gradient(145deg,#0A0E1A,#0C1733 50%,#0D2050);align-items:center;justify-content:center;padding:20px;position:relative;overflow:hidden}
+#screen-auth::before{content:'';position:absolute;top:-200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(0,87,255,0.15),transparent 70%);pointer-events:none}
+.auth-box{background:rgba(255,255,255,0.04);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.1);border-radius:24px;padding:40px;width:100%;max-width:420px;position:relative;z-index:1}
+.auth-logo{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.auth-logo-icon{width:44px;height:44px;background:var(--accent);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.3rem}
+.auth-logo-text{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:#fff}
+.auth-logo-text span{color:var(--accent2)}
+.auth-title{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:700;color:#fff;margin-bottom:4px}
+.auth-sub{color:rgba(255,255,255,0.4);font-size:0.85rem;margin-bottom:24px}
+.auth-tabs{display:flex;gap:4px;background:rgba(255,255,255,0.06);border-radius:12px;padding:4px;margin-bottom:20px}
+.auth-tab{flex:1;padding:10px;border-radius:9px;text-align:center;cursor:pointer;font-weight:600;font-size:0.85rem;color:rgba(255,255,255,0.4);transition:all .2s}
+.auth-tab.active{background:var(--accent);color:#fff}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:0.75rem;font-weight:600;color:rgba(255,255,255,0.5);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:5px}
+.field input{width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:12px 14px;color:#fff;font-family:'DM Sans',sans-serif;font-size:0.9rem;outline:none;transition:border-color .2s}
+.field input::placeholder{color:rgba(255,255,255,0.2)}
+.field input:focus{border-color:var(--accent)}
+.field input[readonly]{opacity:0.6;cursor:default}
+.btn-primary{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:14px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;transition:all .2s;box-shadow:0 4px 20px rgba(0,87,255,0.35);margin-top:4px}
+.btn-primary:hover{transform:translateY(-1px)}
+.auth-error{background:rgba(255,87,34,0.15);border:1px solid rgba(255,87,34,0.3);border-radius:10px;padding:10px 14px;color:#ff8a65;font-size:0.83rem;margin-bottom:14px;display:none}
+.emp-confirm{border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:0.83rem;display:none}
+.emp-confirm.ok{background:rgba(0,200,150,0.12);border:1px solid rgba(0,200,150,0.3);color:#00e0a0}
+.emp-confirm.err{background:rgba(255,87,34,0.12);border:1px solid rgba(255,87,34,0.3);color:#ff8a65}
+
+/* APP */
+#screen-app{flex-direction:row}
+.sidebar{width:240px;min-height:100vh;background:var(--ink);display:flex;flex-direction:column;padding:24px 0;position:fixed;left:0;top:0;bottom:0;z-index:50;transition:transform .3s}
+.sidebar-logo{display:flex;align-items:center;gap:10px;padding:0 20px 24px;border-bottom:1px solid rgba(255,255,255,0.07)}
+.sidebar-logo-icon{width:36px;height:36px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.sidebar-logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;color:#fff}
+.sidebar-logo-text span{color:var(--accent2)}
+.sidebar-user{padding:14px 18px;margin:10px 10px 4px;background:rgba(255,255,255,0.05);border-radius:12px}
+.su-name{font-weight:600;color:#fff;font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.su-role{font-size:0.7rem;color:var(--accent2);font-weight:600;margin-top:2px}
+.su-code{font-size:0.66rem;color:var(--muted);margin-top:2px}
+.sidebar-nav{flex:1;padding:10px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;color:rgba(255,255,255,0.5);cursor:pointer;font-weight:500;font-size:0.85rem;margin-bottom:2px;transition:all .18s}
+.nav-item:hover{color:#fff;background:rgba(255,255,255,0.07)}
+.nav-item.active{color:#fff;background:var(--accent)}
+.nav-icon{font-size:1rem;width:18px;text-align:center;flex-shrink:0}
+.sidebar-footer{padding:14px 18px 0;border-top:1px solid rgba(255,255,255,0.07)}
+.btn-logout{width:100%;background:rgba(255,87,34,0.12);border:1px solid rgba(255,87,34,0.2);color:#ff7043;border-radius:10px;padding:9px;font-weight:600;font-size:0.83rem;cursor:pointer;transition:all .18s}
+.btn-logout:hover{background:rgba(255,87,34,0.2)}
+
+.main{margin-left:240px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30}
+.topbar-title{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700}
+.topbar-date{font-size:0.8rem;color:var(--muted)}
+.hamburger{display:none;background:none;border:none;cursor:pointer;font-size:1.4rem;padding:4px}
+.content{padding:22px 24px;flex:1}
+.panel{display:none;animation:fadeIn .2s ease}
+.panel.active{display:block}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:20px}
+.stat-card{background:var(--card);border-radius:var(--radius);padding:18px;border:1px solid var(--border);box-shadow:var(--shadow)}
+.stat-label{font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+.stat-val{font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800}
+.stat-sub{font-size:0.72rem;color:var(--muted);margin-top:3px}
+.stat-card.accent{background:var(--accent);border-color:var(--accent)}.stat-card.accent .stat-label,.stat-card.accent .stat-val,.stat-card.accent .stat-sub{color:#fff}
+.stat-card.green{background:var(--accent2);border-color:var(--accent2)}.stat-card.green .stat-label,.stat-card.green .stat-val,.stat-card.green .stat-sub{color:#fff}
+
+.sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.sec-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:0.7rem;font-weight:700}
+.badge-blue{background:#EBF1FF;color:var(--accent)}.badge-green{background:#E6FAF5;color:#00A87A}.badge-warn{background:#FFF3E0;color:#E65100}
+
+/* DATE STRIP */
+.date-strip{display:flex;gap:7px;overflow-x:auto;padding-bottom:6px;margin-bottom:16px;scrollbar-width:none}
+.date-strip::-webkit-scrollbar{display:none}
+.date-chip{flex-shrink:0;background:var(--card);border:2px solid var(--border);border-radius:10px;padding:9px 14px;text-align:center;cursor:pointer;transition:all .18s;min-width:58px}
+.date-chip:hover{border-color:var(--accent)}
+.date-chip.active{border-color:var(--accent);background:var(--accent);color:#fff}
+.date-chip.off{opacity:0.35;pointer-events:none}
+.dc-day{font-size:0.65rem;font-weight:600;text-transform:uppercase;opacity:0.7}
+.dc-num{font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;margin-top:1px}
+.date-chip.active .dc-day,.date-chip.active .dc-num{opacity:1}
+
+.week-info{background:linear-gradient(135deg,#EBF1FF,#E6FAF5);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.83rem;display:flex;align-items:center;gap:8px}
+
+/* DR CARDS */
+.dr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;margin-bottom:20px}
+.dr-card{background:var(--card);border:2px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;transition:all .18s;position:relative}
+.dr-card:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.dr-card.selected{border-color:var(--accent);background:#EBF1FF}
+.dr-card.submitted{border-color:var(--accent2);background:#E6FAF5}
+.dr-check{position:absolute;top:12px;right:12px;width:22px;height:22px;background:var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.72rem;transition:all .18s}
+.dr-card.selected .dr-check{background:var(--accent);color:#fff}
+.dr-card.submitted .dr-check{background:var(--accent2);color:#fff}
+.dr-name{font-weight:700;font-size:0.92rem;margin-bottom:3px;padding-right:28px}
+.dr-spec{font-size:0.76rem;color:var(--muted)}
+.dr-place{font-size:0.72rem;color:var(--muted);margin-top:2px}
+.dr-tag{margin-top:8px;display:inline-flex;align-items:center;gap:3px;border-radius:20px;padding:3px 10px;font-size:0.7rem;font-weight:700}
+.dr-tag.pending{background:#EBF1FF;color:var(--accent)}
+.dr-tag.done{background:#E6FAF5;color:#00A87A}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(10,14,26,0.6);backdrop-filter:blur(6px);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex;animation:fadeIn .2s ease}
+.modal{background:var(--card);border-radius:20px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+.modal-head{padding:20px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--card);z-index:1}
+.modal-title{font-family:'Syne',sans-serif;font-weight:700;font-size:1rem}
+.modal-close{width:30px;height:30px;border-radius:8px;border:none;background:var(--surface);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center}
+.modal-body{padding:18px 22px}
+.product-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
+.product-row:last-child{border-bottom:none}
+.product-info{flex:1}
+.product-name{font-weight:700;font-size:0.88rem}
+.product-brand{font-size:0.73rem;color:var(--muted)}
+.rx-stepper{display:flex;align-items:center;gap:7px}
+.rx-btn{width:30px;height:30px;border-radius:8px;border:2px solid var(--border);background:#fff;font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;color:var(--ink)}
+.rx-btn:hover{border-color:var(--accent);color:var(--accent)}
+.rx-input{width:52px;border:2px solid var(--border);border-radius:8px;padding:5px;text-align:center;font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;outline:none;transition:border-color .15s}
+.rx-input:focus{border-color:var(--accent)}
+.notes-area{width:100%;background:var(--surface);border:2px solid var(--border);border-radius:10px;padding:10px;font-family:'DM Sans',sans-serif;font-size:0.85rem;color:var(--ink);resize:none;outline:none;min-height:70px;margin-top:14px;transition:border-color .15s}
+.notes-area:focus{border-color:var(--accent)}
+.modal-actions{display:flex;gap:8px;margin-top:16px}
+.btn-sec{flex:1;background:var(--surface);border:2px solid var(--border);color:var(--ink);border-radius:10px;padding:12px;font-weight:700;font-size:0.88rem;cursor:pointer;transition:all .18s}
+.btn-sec:hover{border-color:var(--accent);color:var(--accent)}
+.btn-save{flex:1;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;transition:all .18s}
+.btn-save:hover{transform:translateY(-1px)}
+
+/* REVIEW TABLE */
+.review-wrap{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow);overflow-x:auto;margin-bottom:14px}
+.review-table{width:100%;border-collapse:collapse;font-size:0.84rem}
+.review-table th{background:var(--surface);padding:9px 12px;text-align:left;font-size:0.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid var(--border)}
+.review-table td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.review-table tr:hover td{background:var(--surface)}
+.rx-pill{display:inline-flex;align-items:center;background:#EBF1FF;color:var(--accent);border-radius:20px;padding:2px 8px;font-size:0.68rem;font-weight:700;margin:2px}
+.rx-pill.zero{background:var(--surface);color:var(--muted)}
+
+/* SUBMIT BAR */
+.submit-bar{background:var(--card);border-top:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;position:sticky;bottom:0;z-index:30;box-shadow:0 -4px 24px rgba(0,0,0,0.06)}
+.submit-summary{font-size:0.85rem;color:var(--muted)}.submit-summary strong{color:var(--ink)}
+.progress-bar{background:var(--border);border-radius:10px;height:5px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:10px;transition:width .4s ease}
+.btn-final{background:var(--accent2);color:#fff;border:none;border-radius:10px;padding:13px 28px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.92rem;cursor:pointer;transition:all .18s;white-space:nowrap}
+.btn-final:hover{transform:translateY(-1px)}
+.btn-final:disabled{opacity:0.4;cursor:not-allowed;transform:none}
+
+/* HISTORY */
+.history-card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow)}
+.history-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);transition:background .15s}
+.history-row:last-child{border-bottom:none}
+.history-row:hover{background:var(--surface)}
+.hr-date{font-family:'Syne',sans-serif;font-weight:700;font-size:0.82rem;color:var(--accent);min-width:80px}
+.hr-dr{font-weight:600;font-size:0.85rem;flex:1}
+.hr-prod{font-size:0.75rem;color:var(--muted);flex:1}
+.hr-rx{font-family:'Syne',sans-serif;font-weight:800}
+
+/* ADMIN */
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.admin-card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:18px;box-shadow:var(--shadow)}
+.admin-card h3{font-family:'Syne',sans-serif;font-size:0.92rem;font-weight:700;margin-bottom:12px}
+.dr-list-item{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);font-size:0.83rem}
+.dr-list-item:last-child{border-bottom:none}
+.dr-avatar{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--accent),#6B8AFF);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:0.72rem;flex-shrink:0}
+.item-name{font-weight:600;flex:1}
+
+/* CSV UPLOAD */
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:28px;text-align:center;cursor:pointer;transition:all .2s;background:var(--card);margin-bottom:14px}
+.upload-zone:hover{border-color:var(--accent);background:#EBF1FF}
+.upload-zone input{display:none}
+.format-box{background:var(--surface);border-radius:10px;padding:14px;margin-bottom:14px;font-size:0.8rem;line-height:1.7}
+.format-box code{background:#e2e8f4;padding:1px 5px;border-radius:4px;font-size:0.76rem}
+
+/* SEARCH / EXPORT */
+.search-bar{display:flex;gap:8px;margin-bottom:14px}
+.search-input{flex:1;background:var(--card);border:2px solid var(--border);border-radius:10px;padding:10px 14px;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;transition:border-color .15s}
+.search-input:focus{border-color:var(--accent)}
+.btn-export{background:var(--ink);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-weight:700;font-size:0.82rem;cursor:pointer;transition:all .18s;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.btn-export:hover{background:var(--accent)}
+
+/* LOADING / TOAST / EMPTY */
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.88);display:none;align-items:center;justify-content:center;z-index:1000}
+.loading-overlay.show{display:flex}
+.spinner{width:44px;height:44px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:#fff;border-radius:12px;padding:12px 22px;font-weight:600;font-size:0.88rem;display:flex;align-items:center;gap:9px;z-index:500;transition:transform .3s ease;box-shadow:var(--shadow-lg);white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.empty{text-align:center;padding:44px 20px;color:var(--muted)}
+/* Profile slide panel */
+.profile-slide{
+  position:fixed;top:0;right:-100%;width:min(420px,100%);height:100vh;
+  background:var(--card);z-index:300;
+  transition:right .3s ease;
+  overflow-y:auto;
+  box-shadow:-4px 0 24px rgba(0,0,0,0.15);
+}
+.profile-slide.open{right:0;}
+.profile-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.45);
+  z-index:299;display:none;backdrop-filter:blur(2px);
+}
+.profile-overlay.open{display:block;}
+.pfield{display:flex;flex-direction:column;gap:5px}
+.plabel{font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+.pinput{background:var(--card);border:2px solid var(--border);border-radius:10px;padding:11px 14px;font-family:'DM Sans',sans-serif;font-size:0.9rem;color:var(--ink);outline:none;transition:border-color .15s;width:100%}
+.pinput:focus{border-color:var(--accent)}
+.empty-icon{font-size:2.8rem;margin-bottom:10px}
+.empty-text{font-size:0.88rem;line-height:1.6}
+
+.mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:49}
+/* ═══ MOBILE BOTTOM NAV (phones) ═══ */
+.mobile-bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--ink);
+  border-top:1px solid rgba(255,255,255,0.08);
+  z-index:100;
+  padding:0;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.mbn-items{
+  display:flex;
+  align-items:stretch;
+}
+.mbn-item{
+  flex:1;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:10px 4px 8px;
+  cursor:pointer;
+  color:rgba(255,255,255,0.45);
+  font-size:0.6rem;font-weight:600;
+  letter-spacing:0.3px;
+  text-transform:uppercase;
+  transition:color .2s;
+  gap:4px;
+  -webkit-tap-highlight-color:transparent;
+  border:none;background:none;
+}
+.mbn-item:active{background:rgba(255,255,255,0.05);}
+.mbn-item.active{color:var(--accent2);}
+.mbn-item .mbn-icon{font-size:1.25rem;line-height:1;}
+.mbn-item.active .mbn-icon{transform:scale(1.1);}
+
+/* ═══ TABLET (768px–1024px) ═══ */
+@media(min-width:769px) and (max-width:1024px){
+  .sidebar{width:200px;}
+  .main{margin-left:200px;}
+  .content{padding:16px 20px;}
+  .stats-row{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));}
+  .dr-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));}
+}
+
+/* ═══ MOBILE (≤768px) ═══ */
+@media(max-width:768px){
+  /* Sidebar hidden by default, slides in on hamburger tap */
+  .sidebar{transform:translateX(-100%) !important;display:flex !important;}
+  .sidebar.open{transform:translateX(0) !important;}
+  .mobile-overlay{display:none;}
+  .hamburger{display:flex !important;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:7px 10px;color:#fff;}
+  .mobile-bottom-nav{display:block;}
+
+  /* Main content full width, bottom padding for nav */
+  .main{margin-left:0;padding-bottom:70px;}
+
+  /* Topbar compact */
+  .topbar{
+    padding:12px 16px;
+    background:var(--ink);
+    border-bottom:none;
+  }
+  .topbar-title{color:#fff;font-size:1rem;}
+  .topbar-date{color:rgba(255,255,255,0.5);font-size:0.72rem;}
+
+  /* Content padding */
+  .content{padding:14px 14px 8px;}
+
+  /* Stats 2-col on phone */
+  .stats-row{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+  .stat-card{padding:14px 12px;}
+  .stat-val{font-size:1.4rem;}
+
+  /* Dr cards full width */
+  .dr-grid{grid-template-columns:1fr;gap:10px;}
+
+  /* Admin grid single col */
+  .admin-grid{grid-template-columns:1fr;}
+
+  /* Modal bottom sheet on mobile */
+  .modal-overlay{align-items:flex-end;padding:0;}
+  .modal{
+    border-radius:20px 20px 0 0;
+    max-height:90vh;
+    width:100%;
+    max-width:100%;
+  }
+
+  /* Submit bar above bottom nav */
+  .submit-bar{
+    padding:10px 14px;
+    bottom:65px; /* above bottom nav */
+  }
+
+  /* Date strip touch friendly */
+  .date-chip{min-width:52px;padding:8px 12px;}
+
+  /* Search bar */
+  .search-bar{margin-bottom:10px;}
+  .search-input{font-size:16px;} /* Prevents iOS zoom */
+
+  /* Form inputs — prevent iOS zoom */
+  .field input{font-size:16px;padding:14px;}
+  .auth-box{padding:28px 22px;margin:0;}
+
+  /* Product row on mobile */
+  .product-row{gap:8px;}
+
+  /* Review table scroll */
+  .review-wrap{overflow-x:auto;}
+  .review-table{min-width:500px;}
+  .review-table th,.review-table td{padding:8px 10px;font-size:0.78rem;}
+
+  /* Buttons touch friendly */
+  .btn-primary,.btn-save,.btn-final{
+    padding:16px;
+    font-size:1rem;
+    min-height:50px;
+  }
+  .btn-export{padding:10px 14px;font-size:0.78rem;}
+
+  /* Upload zone compact */
+  .upload-zone{padding:20px 16px;}
+
+  /* Format box smaller */
+  .format-box{font-size:0.74rem;}
+
+  /* History rows compact */
+  .history-row{padding:10px 12px;gap:8px;}
+  .hr-date{min-width:65px;font-size:0.78rem;}
+
+  /* Week info compact */
+  .week-info{padding:8px 12px;font-size:0.78rem;}
+
+  /* Rx stepper touch friendly */
+  .rx-btn{width:36px;height:36px;font-size:1.2rem;}
+  .rx-input{width:48px;font-size:1rem;}
+
+  /* Section headers */
+  .sec-head{margin-bottom:10px;}
+  .sec-title{font-size:0.92rem;}
+
+  /* Export buttons wrap */
+  .sec-head .btn-export + .btn-export{margin-left:4px;}
+}
+
+/* ═══ SMALL PHONES (≤400px) ═══ */
+@media(max-width:400px){
+  .stats-row{grid-template-columns:1fr 1fr;}
+  .auth-box{padding:22px 16px;}
+  .stat-val{font-size:1.25rem;}
+  .date-chip{min-width:46px;padding:7px 10px;}
+  .dc-num{font-size:1rem;}
+}
+
+/* ═══ DESKTOP (>768px) — full sidebar, no bottom nav ═══ */
+@media(min-width:769px){
+  .mobile-bottom-nav{display:none !important;}
+  .sidebar{display:flex !important;}
+  .main{margin-left:240px;}
+  .hamburger{display:none !important;}
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading-overlay">
+  <div style="text-align:center">
+    <div class="spinner"></div>
+    <div style="margin-top:14px;color:var(--muted);font-weight:600;font-size:0.88rem" id="loading-msg">Loading...</div>
+  </div>
+</div>
+
+<!-- AUTH -->
+<div class="screen active" id="screen-auth">
+  <!-- Version watermark -->
+  <div style="position:fixed;bottom:10px;right:12px;z-index:999;font-size:0.58rem;color:rgba(255,255,255,0.35);font-weight:500;text-align:right;pointer-events:none;line-height:1.5">
+    <div id="app-version-display" style="font-weight:700;font-size:0.65rem;letter-spacing:0.3px"></div>
+    <div style="font-size:0.6rem;opacity:0.8">Developed by Shivesh Gupta</div>
+  </div>
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">💊</div>
+      <div class="auth-logo-text">Rx<span>Track</span></div>
+    </div>
+    <div class="auth-title" id="auth-title">Welcome Back</div>
+    <div class="auth-sub" id="auth-sub">Apna Employee Code aur Password daalo</div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" onclick="switchAuthTab('login')">Login</div>
+      <div class="auth-tab" onclick="switchAuthTab('signup')">New Account</div>
+    </div>
+    <div class="auth-error" id="auth-error"></div>
+
+    <div id="form-login">
+      <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="apna@email.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="field">
+        <label>Password</label>
+        <div style="position:relative">
+          <input type="password" id="login-pass" placeholder="••••••••" style="padding-right:44px" onkeydown="if(event.key==='Enter')doLogin()">
+          <button type="button" onclick="togglePass('login-pass','eye-login')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.5);font-size:1.1rem;padding:4px;line-height:1" id="eye-login">👁️</button>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="doLogin()" onkeydown="if(event.key==='Enter')doLogin()">Login →</button>
+    </div>
+
+    <div id="form-signup" style="display:none">
+      <div class="field">
+        <label>Employee Code</label>
+        <input type="text" id="su-empcode" placeholder="131138 ya 120864" oninput="autoFillEmp(this.value)">
+      </div>
+      <div class="emp-confirm" id="emp-confirm"></div>
+      <div class="field"><label>Name (Auto)</label><input type="text" id="su-name" readonly></div>
+      <div class="field"><label>HQ (Auto)</label><input type="text" id="su-hq" readonly></div>
+      <div class="field"><label>Designation (Auto)</label><input type="text" id="su-desig" readonly></div>
+      <div class="field"><label>Email</label><input type="email" id="su-email" placeholder="apna@email.com" onkeydown="if(event.key==='Enter')doSignup()"></div>
+      <div class="field">
+        <label>Password (min 6 characters)</label>
+        <div style="position:relative">
+          <input type="password" id="su-pass" placeholder="••••••••" style="padding-right:44px" onkeydown="if(event.key==='Enter')doSignup()">
+          <button type="button" onclick="togglePass('su-pass','eye-su')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.5);font-size:1.1rem;padding:4px;line-height:1" id="eye-su">👁️</button>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="doSignup()">Account Banao →</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="screen" id="screen-app">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">💊</div>
+      <div class="sidebar-logo-text">Rx<span>Track</span></div>
+    </div>
+    <div class="sidebar-user">
+      <div class="su-name" id="sb-name">...</div>
+      <div class="su-role" id="sb-role">...</div>
+      <div class="su-code" id="sb-code">...</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-item active" onclick="showPanel('dashboard',this)"><span class="nav-icon">📊</span>Dashboard</div>
+      <div class="nav-item" id="nav-entry" onclick="showPanel('entry',this)"><span class="nav-icon">💉</span>Rx Entry</div>
+      <div class="nav-item" id="nav-review" onclick="showPanel('review',this)"><span class="nav-icon">🔍</span>Review & Submit</div>
+      <div class="nav-item" onclick="showPanel('history',this)"><span class="nav-icon">📋</span>My History</div>
+      <div class="nav-item" id="nav-team" style="display:none" onclick="showPanel('team',this)"><span class="nav-icon">👥</span>Team Report</div>
+      <div class="nav-item" id="nav-admin" style="display:none" onclick="showPanel('admin',this)"><span class="nav-icon">⚙️</span>Admin Panel</div>
+    </div>
+    <div class="sidebar-footer" style="border-top:1px solid rgba(255,255,255,0.07);padding:10px 12px">
+      <div style="font-size:0.65rem;color:rgba(255,255,255,0.25);text-align:center;line-height:1.5">v2.0 | Developed by<br>Shivesh Gupta</div>
+    </div>
+  </div>
+  <div class="mobile-overlay" id="mobile-overlay" onclick="closeSidebar()"></div>
+
+  <!-- Version watermark in app -->
+  <div style="position:fixed;bottom:72px;right:10px;z-index:40;font-size:0.55rem;color:rgba(0,0,0,0.2);font-weight:500;text-align:right;pointer-events:none;line-height:1.5">
+    <div>v2.0.0 | Developed by Shivesh Gupta</div>
+  </div>
+
+  <!-- MOBILE BOTTOM NAV (phones only) -->
+  <div class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <div class="mbn-items">
+      <button class="mbn-item active" id="mbn-dashboard" onclick="mbnNav('dashboard',this)">
+        <span class="mbn-icon">📊</span>Home
+      </button>
+      <button class="mbn-item" id="mbn-entry" onclick="mbnNav('entry',this)">
+        <span class="mbn-icon">💉</span>Rx Entry
+      </button>
+      <button class="mbn-item" id="mbn-review" onclick="mbnNav('review',this)">
+        <span class="mbn-icon">🔍</span>Review
+      </button>
+      <button class="mbn-item" id="mbn-history" onclick="mbnNav('history',this)">
+        <span class="mbn-icon">📋</span>History
+      </button>
+      <button class="mbn-item" id="mbn-more" onclick="toggleMobileMenu()">
+        <span class="mbn-icon">⋯</span>More
+      </button>
+    </div>
+  </div>
+
+  <!-- MOBILE MORE MENU (slides up) -->
+  <div id="mobile-more-menu" style="display:none;position:fixed;bottom:65px;left:0;right:0;background:var(--ink);border-top:1px solid rgba(255,255,255,0.1);z-index:99;border-radius:16px 16px 0 0;padding:12px 0;">
+    <div style="text-align:center;padding:4px 0 12px;color:rgba(255,255,255,0.3);font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;">More Options</div>
+    <div id="mbn-team-wrap" style="display:none">
+      <button onclick="mbnNav('team',null);toggleMobileMenu()" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 24px;background:none;border:none;color:#fff;font-size:0.9rem;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <span style="font-size:1.2rem">👥</span> Team Report
+      </button>
+    </div>
+    <div id="mbn-admin-wrap" style="display:none">
+      <button onclick="mbnNav('admin',null);toggleMobileMenu()" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 24px;background:none;border:none;color:#fff;font-size:0.9rem;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        <span style="font-size:1.2rem">⚙️</span> Admin Panel
+      </button>
+    </div>
+    <button onclick="openProfileSlide();toggleMobileMenu()" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 24px;background:none;border:none;color:#fff;font-size:0.9rem;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+      <span style="font-size:1.2rem">👤</span> My Profile
+    </button>
+    <button onclick="doLogout()" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 24px;background:none;border:none;color:#ff7043;font-size:0.9rem;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;">
+      <span style="font-size:1.2rem">🚪</span> Logout
+    </button>
+    <button onclick="toggleMobileMenu()" style="width:100%;padding:12px;background:none;border:none;color:rgba(255,255,255,0.3);font-size:0.85rem;cursor:pointer;">Cancel</button>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="hamburger" onclick="toggleSidebar()">☰</button>
+        <div class="topbar-title" id="topbar-title">Dashboard</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="topbar-date" id="topbar-date"></div>
+        <div id="topbar-user-mobile" style="display:none;align-items:center;gap:6px;position:relative">
+          <div onclick="toggleAvatarMenu()" style="width:34px;height:34px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.8rem;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,87,255,0.4)" id="topbar-avatar">?</div>
+          <!-- Avatar dropdown menu -->
+          <div id="avatar-menu" style="display:none;position:absolute;top:42px;right:0;background:white;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,0.18);min-width:200px;z-index:500;overflow:hidden;border:1px solid var(--border)">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
+              <div style="font-weight:700;font-size:0.88rem;color:var(--ink)" id="avatar-menu-name">...</div>
+              <div style="font-size:0.72rem;color:var(--muted);margin-top:2px" id="avatar-menu-role">...</div>
+            </div>
+            <button onclick="openProfileSlide();toggleAvatarMenu()" style="width:100%;display:flex;align-items:center;gap:10px;padding:13px 16px;background:none;border:none;cursor:pointer;font-size:0.88rem;color:var(--ink);font-weight:500;border-bottom:1px solid var(--border)">
+              <span style="font-size:1.1rem">✏️</span> Edit Profile
+            </button>
+            <button onclick="doLogout()" style="width:100%;display:flex;align-items:center;gap:10px;padding:13px 16px;background:none;border:none;cursor:pointer;font-size:0.88rem;color:#ff7043;font-weight:600">
+              <span style="font-size:1.1rem">🚪</span> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div class="panel active" id="panel-dashboard">
+        <div class="stats-row" id="dash-stats"></div>
+        <div class="sec-head">
+          <div class="sec-title">Aaj ki Submissions</div>
+          <span class="badge badge-blue" id="dash-badge">0 Drs</span>
+        </div>
+        <div class="history-card" id="dash-list">
+          <div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Aaj koi submission nahi.<br>Rx Entry mein jao!</div></div>
+        </div>
+      </div>
+
+      <!-- RX ENTRY -->
+      <div class="panel" id="panel-entry">
+        <div class="sec-head">
+          <div class="sec-title">Date Chuno</div>
+          <div style="display:flex;gap:6px">
+            <button onclick="jumpToMonth(-1)" style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:5px 10px;font-size:0.75rem;font-weight:600;cursor:pointer;color:var(--ink)">◀ Last Month</button>
+            <button onclick="jumpToMonth(0)" style="background:var(--accent);border:none;border-radius:8px;padding:5px 10px;font-size:0.75rem;font-weight:600;cursor:pointer;color:#fff">This Month</button>
+          </div>
+        </div>
+        <div class="date-strip" id="date-strip"></div>
+        <div class="week-info" id="week-info">📅 Loading...</div>
+        <div class="sec-head">
+          <div class="sec-title">Aapke Doctors — <span id="sel-date-lbl">aaj</span></div>
+          <span class="badge badge-blue" id="dr-badge">0</span>
+        </div>
+        <div class="search-bar">
+          <input class="search-input" placeholder="🔍 Doctor search karo..." id="dr-search" oninput="filterDrs()">
+        </div>
+        <div id="dr-grid-wrap"><div class="dr-grid" id="dr-grid"></div></div>
+      </div>
+
+      <!-- REVIEW -->
+      <div class="panel" id="panel-review">
+        <div class="sec-head">
+          <div class="sec-title">Review — <span id="review-date-lbl"></span></div>
+          <span class="badge badge-warn" id="review-badge">Pending</span>
+        </div>
+        <div class="review-wrap">
+          <table class="review-table">
+            <thead><tr>
+              <th>Doctor</th><th>Specialty</th><th>Rx Products</th>
+              <th>Total</th><th>Notes</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody id="review-tbody"></tbody>
+          </table>
+        </div>
+        <div class="stats-row" id="review-stats"></div>
+      </div>
+
+      <!-- HISTORY (MR sees own, TM/BM sees team filtered) -->
+      <div class="panel" id="panel-history">
+        <div class="sec-head">
+          <div class="sec-title">Submission History</div>
+          <button class="btn-export" onclick="exportHistory()">⬇ Export</button>
+        </div>
+        <div class="search-bar">
+          <input class="search-input" placeholder="🔍 Search..." id="hist-search" oninput="filterHistory()">
+        </div>
+        <div class="history-card" id="history-list"></div>
+      </div>
+
+      <!-- PROFILE PANEL -->
+      <div class="panel" id="panel-profile">
+        <div class="sec-head"><div class="sec-title">✏️ My Profile</div></div>
+        <div style="background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:24px;box-shadow:var(--shadow);max-width:500px">
+          <!-- Profile Photo -->
+          <div style="text-align:center;margin-bottom:24px">
+            <div style="position:relative;display:inline-block">
+              <div id="profile-photo-display" style="width:80px;height:80px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:2rem;font-weight:700;margin:0 auto;overflow:hidden;cursor:pointer" onclick="document.getElementById('profile-photo-input').click()">
+                <span id="profile-photo-initial">S</span>
+                <img id="profile-photo-img" src="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;border-radius:50%">
+              </div>
+              <input type="file" id="profile-photo-input" accept="image/*" style="display:none" onchange="handleProfilePhoto(this)">
+              <div onclick="document.getElementById('profile-photo-input').click()" style="position:absolute;bottom:0;right:0;background:var(--accent2);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.7rem;border:2px solid white">📷</div>
+            </div>
+            <div style="margin-top:10px;font-size:0.75rem;color:var(--muted)">Photo change karne ke liye tap karo</div>
+          </div>
+          <!-- Fields -->
+          <div style="display:grid;gap:14px">
+            <div class="pfield"><label class="plabel">Full Name</label><input class="pinput" id="pf-name" placeholder="Aapka naam" readonly style="opacity:0.7;background:var(--surface)"></div>
+            <div class="pfield"><label class="plabel">Employee Code</label><input class="pinput" id="pf-empcode" placeholder="131138" readonly style="opacity:0.7;background:var(--surface)"></div>
+            <div class="pfield"><label class="plabel">Designation</label><input class="pinput" id="pf-desig" placeholder="BM / TM / MR" readonly style="opacity:0.7;background:var(--surface)"></div>
+            <div class="pfield"><label class="plabel">HQ</label><input class="pinput" id="pf-hq" placeholder="GHAZIABAD" readonly style="opacity:0.7;background:var(--surface)"></div>
+            <div class="pfield"><label class="plabel">Date of Birth</label><input class="pinput" type="date" id="pf-dob" placeholder="DD/MM/YYYY"></div>
+            <div class="pfield"><label class="plabel">Date of Joining</label><input class="pinput" type="date" id="pf-doj" placeholder="DD/MM/YYYY"></div>
+            <div class="pfield"><label class="plabel">Mobile Number</label><input class="pinput" type="tel" id="pf-mobile" placeholder="98XXXXXXXX"></div>
+            <div class="pfield"><label class="plabel">Personal Email</label><input class="pinput" type="email" id="pf-personal-email" placeholder="personal@gmail.com"></div>
+            <div class="pfield"><label class="plabel">Date of Marriage</label><input class="pinput" type="date" id="pf-dom"></div>
+            <button onclick="saveProfile()" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:14px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;margin-top:4px;width:100%">💾 Save Profile</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TEAM REPORT (TM only) -->
+      <div class="panel" id="panel-team">
+        <div class="sec-head">
+          <div class="sec-title">Team Report — <span id="team-month-lbl"></span></div>
+        </div>
+        <div class="stats-row" id="team-stats"></div>
+        <div class="sec-head" style="margin-top:8px">
+          <div class="sec-title">MR-wise Performance</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-export" onclick="exportTeamFortnightly('1-15')">⬇ 1–15 Export</button>
+            <button class="btn-export" onclick="exportTeamFortnightly('16-31')">⬇ 16–31 Export</button>
+            <button class="btn-export" onclick="exportTeamMonthly()">⬇ Full Month</button>
+          </div>
+        </div>
+        <div class="admin-card" style="margin-top:0">
+          <div id="team-mr-table"></div>
+        </div>
+      </div>
+
+      <!-- ADMIN (BM only) -->
+      <div class="panel" id="panel-admin">
+        <div class="sec-head">
+          <div class="sec-title">Admin Dashboard</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-export" onclick="exportAdminFortnightly('1-15')">⬇ 1–15</button>
+            <button class="btn-export" onclick="exportAdminFortnightly('16-31')">⬇ 16–31</button>
+            <button class="btn-export" onclick="exportAdminMonthly()">⬇ Full Month</button>
+          </div>
+        </div>
+        <div class="stats-row" id="admin-stats"></div>
+
+        <div class="sec-head" style="margin-top:4px"><div class="sec-title">📤 Doctor List Upload (CSV)</div></div>
+        <div class="format-box">
+          <strong>CSV Format (exact column order):</strong><br>
+          <code>Zone, BM Code, BM HQ, TM Code, TM Name, TM HQ, MR Code, MR Name, MR HQ, Advait No, Doctor Name, Specialty, Place, Week Days, 1, 2, 3 ... 31</code><br><br>
+          <strong>Week Days column:</strong> Monday / Tuesday / Wednesday / Thursday / Friday / Saturday<br>
+          <strong>Days 1-31:</strong> 1 = visit scheduled, blank = no visit<br><br>
+          ✅ Advait No = Doctor ka unique ID (empCode nahi)<br>
+          ✅ MR Code = MR ka employee code (login ke liye)
+        </div>
+        <div class="upload-zone" onclick="document.getElementById('csv-upload').click()">
+          <input type="file" id="csv-upload" accept=".csv" onchange="uploadCSV(this)">
+          <div style="font-size:2.2rem;margin-bottom:8px">📂</div>
+          <div style="font-weight:600;margin-bottom:4px">CSV Upload Karo</div>
+          <div style="font-size:0.77rem;color:var(--muted)">Aapka Ghaziabad_Region_Rx.csv format sahi hai</div>
+        </div>
+        <div id="upload-result"></div>
+
+        <div class="sec-head" style="margin-top:16px">
+          <div class="sec-title">Aaj ki MR Performance</div>
+        </div>
+        <div class="admin-grid" id="admin-grid"></div>
+      </div>
+
+    </div><!-- /content -->
+
+    <!-- SUBMIT BAR -->
+    <div class="submit-bar" id="submit-bar" style="display:none">
+      <div>
+        <div class="submit-summary"><strong id="sb-sel">0 doctors</strong> ka data ready · <strong id="sb-rx">0 Rx</strong></div>
+        <div class="progress-bar"><div class="progress-fill" id="sb-prog" style="width:0%"></div></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-sec" style="padding:11px 18px" onclick="showPanel('review',document.querySelectorAll('.nav-item')[2])">🔍 Review</button>
+        <button class="btn-final" id="btn-submit" onclick="finalSubmit()" disabled style="display:none">✓ Final Submit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE SLIDE PANEL -->
+<div class="profile-overlay" id="profile-overlay" onclick="closeProfileSlide()"></div>
+<div class="profile-slide" id="profile-slide">
+  <div style="position:sticky;top:0;background:var(--card);z-index:1;padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem">✏️ My Profile</div>
+    <button onclick="closeProfileSlide()" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--surface);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
+  </div>
+  <div style="padding:20px">
+    <!-- Photo -->
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="position:relative;display:inline-block">
+        <div id="slide-photo-wrap" onclick="document.getElementById('slide-photo-input').click()" style="width:80px;height:80px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:2rem;font-weight:700;margin:0 auto;overflow:hidden;cursor:pointer;position:relative">
+          <span id="slide-photo-initial">S</span>
+          <img id="slide-photo-img" src="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;border-radius:50%">
+        </div>
+        <input type="file" id="slide-photo-input" accept="image/*" style="display:none" onchange="handleSlidePhoto(this)">
+        <div onclick="document.getElementById('slide-photo-input').click()" style="position:absolute;bottom:0;right:0;background:var(--accent2);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.7rem;border:2px solid white">📷</div>
+      </div>
+      <div style="margin-top:8px;font-size:0.72rem;color:var(--muted)">Photo change karne ke liye tap karo</div>
+    </div>
+    <!-- Fields -->
+    <div style="display:grid;gap:12px">
+      <div class="pfield"><label class="plabel">Full Name</label><input class="pinput" id="sp-name" readonly style="opacity:0.65;background:var(--surface)"></div>
+      <div class="pfield"><label class="plabel">Employee Code</label><input class="pinput" id="sp-empcode" readonly style="opacity:0.65;background:var(--surface)"></div>
+      <div class="pfield"><label class="plabel">Designation · HQ</label><input class="pinput" id="sp-role" readonly style="opacity:0.65;background:var(--surface)"></div>
+      <div style="height:1px;background:var(--border);margin:4px 0"></div>
+      <div class="pfield"><label class="plabel">📅 Date of Birth</label><input class="pinput" type="date" id="sp-dob"></div>
+      <div class="pfield"><label class="plabel">🏢 Date of Joining</label><input class="pinput" type="date" id="sp-doj"></div>
+      <div class="pfield"><label class="plabel">💍 Date of Marriage</label><input class="pinput" type="date" id="sp-dom"></div>
+      <div class="pfield"><label class="plabel">📱 Mobile Number</label><input class="pinput" type="tel" id="sp-mobile" placeholder="98XXXXXXXX"></div>
+      <div class="pfield"><label class="plabel">📧 Personal Email</label><input class="pinput" type="email" id="sp-personal-email" placeholder="personal@gmail.com"></div>
+      <button onclick="saveSlideProfile()" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:14px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;margin-top:4px;width:100%">💾 Save Profile</button>
+      <button onclick="doLogout()" style="background:rgba(255,87,34,0.1);border:1.5px solid rgba(255,87,34,0.25);color:#ff7043;border-radius:10px;padding:12px;font-weight:700;font-size:0.9rem;cursor:pointer;width:100%">🚪 Logout</button>
+      <div style="text-align:center;font-size:0.65rem;color:var(--muted);margin-top:4px" id="sp-version-lbl">v2.0 | Developed by Shivesh Gupta</div>
+    </div>
+  </div>
+</div>
+
+<!-- RX MODAL -->
+<div class="modal-overlay" id="rx-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="modal-dr-name">Doctor</div>
+        <div style="font-size:0.75rem;color:var(--muted)" id="modal-dr-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:0.76rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Product-wise Rx Count</div>
+      <div id="product-rows"></div>
+      <div style="font-size:0.76rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:14px;margin-bottom:6px">Notes</div>
+      <textarea class="notes-area" id="modal-notes" placeholder="Koi observation ya feedback..."></textarea>
+      <div class="modal-actions">
+        <button class="btn-sec" onclick="closeModal()">Cancel</button>
+        <button class="btn-save" onclick="saveRx()">Save Rx ✓</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span id="toast-icon">✅</span><span id="toast-msg">Saved!</span></div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  EMPLOYEE MASTER (BM/TM/MR codes)
+// ═══════════════════════════════════════════════
+const EMPLOYEE_MASTER = [
+  { empCode:'131138',   name:'SHIVESH KUMAR GUPTA',          desig:'BM', hq:'GHAZIABAD' },
+  { empCode:'143378',   name:'PIYUSH RAJ SINGH CHAUHAN',     desig:'TM', hq:'GHAZIABAD' },
+  { empCode:'112015',   name:'AMIT GANGWAR',                 desig:'MR', hq:'BAREILLY'  },
+  { empCode:'147682',   name:'JISHAN',                       desig:'MR', hq:'MEERUT'    },
+  { empCode:'117104',   name:'MAHESH CHAND SHARMA',          desig:'MR', hq:'GHAZIABAD' },
+  { empCode:'V7059318', name:'VACANT MORADABAD',             desig:'MR', hq:'MORADABAD' },
+  { empCode:'146153',   name:'SAMEER',                       desig:'MR', hq:'MEERUT'    },
+  { empCode:'120922',   name:'NITIN GAURAV',                 desig:'TM', hq:'DEHRADUN'  },
+  { empCode:'146413',   name:'VIKAS SHARMA',                 desig:'MR', hq:'HARIDWAR'  },
+  { empCode:'146646',   name:'ROHIT',                        desig:'MR', hq:'DEHRADUN'  },
+  { empCode:'146717',   name:'VAIBHAV KANDPAL',              desig:'MR', hq:'HALDWANI'  },
+  { empCode:'110757',   name:'JITENDRA KUMAR',               desig:'MR', hq:'SAHARANPUR'},
+  { empCode:'120864',   name:'ANKIT GUPTA',                  desig:'TM', hq:'AGRA'      },
+  { empCode:'V7060485', name:'VACANT AGRA',                  desig:'MR', hq:'AGRA'      },
+  { empCode:'131241',   name:'BHARAT KARKARAY',              desig:'MR', hq:'JHANSI'    },
+  { empCode:'143379',   name:'JITENDRA SIKARWAR',            desig:'MR', hq:'AGRA'      },
+  { empCode:'122662',   name:'TARUN PARASHAR',               desig:'MR', hq:'ALIGARH'   },
+  // CSV mein additional MR codes
+  { empCode:'112085',   name:'AMIT GANGWAR',                 desig:'MR', hq:'BAREILLY'  },
+];
+
+// ═══════════════════════════════════════════════
+//  PRODUCTS
+// ═══════════════════════════════════════════════
+const PRODUCTS = [
+  { id:'NEBI',  name:'Nebicard',   brand:'Nebivolol' },
+  { id:'GLUC',  name:'Glucreta SM',brand:'Dapagliflozin + Metformin' },
+  { id:'TORP',  name:'Torplat',    brand:'Ticagrelor' },
+  { id:'HEFC',  name:'Hefcard',    brand:'Sacubitril + Valsartan' },
+];
+
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+let selectedDate = todayStr();
+let currentDrId  = null;
+let pendingRx    = {};     // { drId: { rx:{}, notes:'' } }
+let todayDoctors = [];
+let allSubmissions = [];
+
+// ═══════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════
+function todayStr() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
+function fmtDate(s) {
+  return new Date(s+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
+}
+function getWeekOfMonth(dateStr) {
+  const d = new Date(dateStr+'T00:00:00');
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  return Math.ceil((d.getDate() + first.getDay()) / 7);
+}
+function isWorkingDay(dateStr) {
+  const d = new Date(dateStr+'T00:00:00');
+  const dow = d.getDay();
+  const wk  = getWeekOfMonth(dateStr);
+  if (dow === 0) return false;
+  if (wk === 1 || wk === 3) return dow <= 6;
+  return dow <= 5;
+}
+const DAY_MAP = {Monday:'mon',Tuesday:'tue',Wednesday:'wed',Thursday:'thu',Friday:'fri',Saturday:'sat',Sunday:'sun'};
+const DOW_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
+
+function showLoading(m='Loading...') { document.getElementById('loading-msg').textContent=m; document.getElementById('loading-overlay').classList.add('show'); }
+function hideLoading() { document.getElementById('loading-overlay').classList.remove('show'); }
+function toast(msg,icon='✅') {
+  const t=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  document.getElementById('toast-icon').textContent=icon;
+  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3200);
+}
+function showAuthError(msg) {
+  const e=document.getElementById('auth-error');
+  e.textContent=msg;e.style.display='block';
+}
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&tab==='login')||(i===1&&tab==='signup')));
+  document.getElementById('form-login').style.display   = tab==='login' ? '':'none';
+  document.getElementById('form-signup').style.display  = tab==='signup'? '':'none';
+  document.getElementById('auth-title').textContent     = tab==='login' ? 'Welcome Back':'Account Banao';
+  document.getElementById('auth-sub').textContent       = tab==='login' ? 'Email aur password daalo':'Pehli baar? Naaya account banao';
+  document.getElementById('auth-error').style.display   = 'none';
+}
+
+// ═══════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════
+function autoFillEmp(code) {
+  const emp = EMPLOYEE_MASTER.find(e=>e.empCode.toUpperCase()===code.trim().toUpperCase());
+  const box = document.getElementById('emp-confirm');
+  if (emp) {
+    document.getElementById('su-name').value  = emp.name;
+    document.getElementById('su-hq').value    = emp.hq;
+    document.getElementById('su-desig').value = emp.desig;
+    box.className='emp-confirm ok';box.style.display='block';
+    box.innerHTML=`✅ <strong>${emp.name}</strong> | ${emp.desig} | ${emp.hq}`;
+  } else {
+    ['su-name','su-hq','su-desig'].forEach(id=>document.getElementById(id).value='');
+    if (code.length>3) {
+      box.className='emp-confirm err';box.style.display='block';
+      box.textContent='❌ Employee Code nahi mila.';
+    } else { box.style.display='none'; }
+  }
+}
+
+async function doSignup() {
+  const code  = document.getElementById('su-empcode').value.trim().toUpperCase();
+  const email = document.getElementById('su-email').value.trim();
+  const pass  = document.getElementById('su-pass').value;
+  const emp   = EMPLOYEE_MASTER.find(e=>e.empCode.toUpperCase()===code);
+  if (!emp)  return showAuthError('Valid Employee Code daalo.');
+  if (!email) return showAuthError('Email daalo.');
+  if (pass.length<6) return showAuthError('Password min 6 characters.');
+
+  const { createUserWithEmailAndPassword, doc, setDoc } = window._fbModules;
+  showLoading('Account ban raha hai...');
+  try {
+    const cred = await createUserWithEmailAndPassword(window._auth, email, pass);
+    await setDoc(doc(window._db,'users',cred.user.uid), {
+      name: emp.name, empCode: emp.empCode, email,
+      hq: emp.hq, desig: emp.desig,
+      role: emp.desig==='BM'?'admin': emp.desig==='TM'?'tm':'mr',
+      createdAt: new Date().toISOString()
+    });
+    hideLoading();
+    toast('Account ban gaya! Welcome '+emp.name);
+  } catch(e) {
+    hideLoading();
+    const m={'auth/email-already-in-use':'Email pehle se registered.','auth/invalid-email':'Email sahi nahi.','auth/weak-password':'Password zyada strong daalo.'};
+    showAuthError(m[e.code]||e.message);
+  }
+}
+
+async function doLogin() {
+  const email=document.getElementById('login-email').value.trim();
+  const pass =document.getElementById('login-pass').value;
+  if (!email||!pass) return showAuthError('Email aur password daalo.');
+  const { signInWithEmailAndPassword } = window._fbModules;
+  showLoading('Login ho raha hai...');
+  try {
+    await signInWithEmailAndPassword(window._auth, email, pass);
+    hideLoading();
+  } catch(e) {
+    hideLoading();
+    const m={'auth/user-not-found':'Email registered nahi.','auth/wrong-password':'Password galat.','auth/invalid-credential':'Email ya password galat.','auth/too-many-requests':'Bahut zyada tries. Baad mein try karo.'};
+    showAuthError(m[e.code]||e.message);
+  }
+}
+
+async function doLogout() {
+  const { signOut } = window._fbModules;
+  await signOut(window._auth);
+  window._currentUser=null; pendingRx={}; allSubmissions=[];
+  document.getElementById('screen-auth').classList.add('active');
+  document.getElementById('screen-app').classList.remove('active');
+}
+
+// ═══════════════════════════════════════════════
+//  APP INIT
+// ═══════════════════════════════════════════════
+window.initApp = async function() {
+  const u = window._currentUser;
+  document.getElementById('screen-auth').classList.remove('active');
+  document.getElementById('screen-app').classList.add('active');
+  document.getElementById('sb-name').textContent = u.name;
+  // Mobile topbar avatar
+  const avatar = document.getElementById('topbar-avatar');
+  if(avatar) avatar.textContent = u.name.charAt(0).toUpperCase();
+  const mobileUser = document.getElementById('topbar-user-mobile');
+  if(mobileUser) mobileUser.style.display='flex';
+  // Update avatar menu name/role
+  const menuName = document.getElementById('avatar-menu-name');
+  const menuRole = document.getElementById('avatar-menu-role');
+  if(menuName) menuName.textContent = u.name||'';
+  if(menuRole) menuRole.textContent = (u.desig||'') + ' · ' + (u.hq||'');
+  document.getElementById('sb-role').textContent = u.desig+' · '+u.hq;
+  document.getElementById('sb-code').textContent = 'Code: '+u.empCode;
+  document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  const isBM = u.role==='admin'||u.desig==='BM';
+  const isTM = u.desig==='TM'||u.role==='tm';
+
+  if (isBM) { document.getElementById('nav-admin').style.display='flex'; }
+  if (isTM) { document.getElementById('nav-team').style.display='flex'; }
+  // BM also sees team report
+  if (isBM) { document.getElementById('nav-team').style.display='flex'; }
+
+  showLoading('Data load ho raha hai...');
+  await loadSubmissions();
+  hideLoading();
+  buildDateStrip();
+  await renderDrGrid();
+  renderDashboard();
+  updateSubmitBar();
+  updateMobileNav(); // Setup mobile nav based on role
+};
+
+// ═══════════════════════════════════════════════
+//  LOAD SUBMISSIONS (role-based)
+// ═══════════════════════════════════════════════
+async function loadSubmissions() {
+  const { collection, query, where, getDocs } = window._fbModules;
+  const u = window._currentUser;
+  const isBM = u.role==='admin'||u.desig==='BM';
+  const isTM = u.desig==='TM'||u.role==='tm';
+
+  try {
+    let snap;
+    if (isBM) {
+      snap = await getDocs(query(collection(window._db,'submissions'), where('finalized','==',true)));
+    } else if (isTM) {
+      // TM sees all submissions where tmCode matches
+      snap = await getDocs(query(collection(window._db,'submissions'),
+        where('tmCode','==',u.empCode), where('finalized','==',true)));
+    } else {
+      // MR sees only own
+      snap = await getDocs(query(collection(window._db,'submissions'),
+        where('mrCode','==',u.empCode), where('finalized','==',true)));
+    }
+    allSubmissions = snap.docs.map(d=>({id:d.id,...d.data()}));
+  } catch(e) {
+    console.error(e); allSubmissions=[];
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  DATE STRIP
+// ═══════════════════════════════════════════════
+// Which month to show: 0=current, -1=last month
+let stripMonthOffset = 0;
+
+function jumpToMonth(offset){
+  stripMonthOffset = offset;
+  // If going to last month, set selectedDate to last day of last month
+  const now = new Date();
+  if(offset === -1){
+    const lastMonth = new Date(now.getFullYear(), now.getMonth(), 0); // last day of prev month
+    selectedDate = lastMonth.getFullYear()+'-'+String(lastMonth.getMonth()+1).padStart(2,'0')+'-'+String(lastMonth.getDate()).padStart(2,'0');
+  } else {
+    selectedDate = todayStr(); // back to today
+  }
+  buildDateStrip();
+  renderDrGrid();
+}
+
+function buildDateStrip() {
+  const strip = document.getElementById('date-strip');
+  strip.innerHTML='';
+  const tod = todayStr();
+  const todDate = new Date(tod+'T00:00:00');
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  // Determine which month to show
+  const refDate = new Date(todDate);
+  refDate.setMonth(refDate.getMonth() + stripMonthOffset);
+  const yr = refDate.getFullYear();
+  const mo = refDate.getMonth();
+
+  // Show all days of the month, but only up to today if current month
+  const daysInMonth = new Date(yr, mo+1, 0).getDate();
+  // Current month: only up to today. Last month: all days.
+  const maxDay = (stripMonthOffset === 0) ? todDate.getDate() : daysInMonth;
+  const startDay = 1; // Always start from day 1
+
+  for (let day=1; day<=maxDay; day++) {
+    const d = new Date(yr, mo, day);
+    const str = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const isToday = str === tod;
+    const off = !isWorkingDay(str);
+    const chip = document.createElement('div');
+    chip.className='date-chip'+(str===selectedDate?' active':'')+(off?' off':'');
+    chip.innerHTML=`<div class="dc-day">${isToday?'TODAY':days[d.getDay()]}</div><div class="dc-num">${d.getDate()}</div>`;
+    chip.onclick=()=>{
+      if(off) return; // non-working day, ignore
+      selectedDate=str;
+      document.querySelectorAll('.date-chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      document.getElementById('sel-date-lbl').textContent=isToday?'aaj':fmtDate(str);
+      updateWeekInfo(str); renderDrGrid();
+    };
+    strip.appendChild(chip);
+  }
+
+  // Auto-scroll to selected date
+  setTimeout(()=>{
+    const activeChip = strip.querySelector('.date-chip.active');
+    if(activeChip) activeChip.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+  }, 100);
+
+  updateWeekInfo(selectedDate);
+}
+
+function updateWeekInfo(dateStr) {
+  const d = new Date(dateStr+'T00:00:00');
+  const dow = d.getDay();
+  const wk  = getWeekOfMonth(dateStr);
+  const el  = document.getElementById('week-info');
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  if (dow===0) { el.textContent='🔴 Sunday — Chutti ka din'; el.style.background='#fff5f5'; return; }
+  const wkLabel = (wk===1||wk===3)?'Mon–Sat (Sat Working)':'Mon–Fri (Sat Off)';
+  el.textContent=`📅 Week ${wk} · ${days[dow]} · Working Days: ${wkLabel}`;
+  el.style.background='';
+}
+
+// ═══════════════════════════════════════════════
+//  GET DOCTORS FOR DATE (from Firestore)
+// ═══════════════════════════════════════════════
+async function getDrsForDate(dateStr) {
+  const { collection, query, where, getDocs } = window._fbModules;
+  const u = window._currentUser;
+  const d = new Date(dateStr+'T00:00:00');
+  const dow = d.getDay();
+  if (dow===0) return [];
+
+  const dayKey = DOW_KEYS[dow];
+  const wk = getWeekOfMonth(dateStr);
+
+  try {
+    let q;
+    // BM sees all doctors, TM sees their team, MR sees own
+    const isBM = u.role==='admin'||u.desig==='BM';
+    const isTM = u.desig==='TM'||u.role==='tm';
+
+    if (isBM) {
+      q = query(collection(window._db,'doctors'));
+    } else if (isTM) {
+      q = query(collection(window._db,'doctors'), where('tmCode','==',u.empCode));
+    } else {
+      q = query(collection(window._db,'doctors'), where('mrCode','==',u.empCode));
+    }
+
+    const snap = await getDocs(q);
+    const all  = snap.docs.map(d=>({id:d.id,...d.data()}));
+
+    return all.filter(dr=>{
+      if (!dr[dayKey]) return false; // Not scheduled this weekday
+      // Saturday rule
+      if (dow===6) {
+        if (wk===2||wk===4) return false; // Sat off in 2nd/4th week
+      }
+      return true;
+    });
+  } catch(e) { console.error(e); return []; }
+}
+
+// ═══════════════════════════════════════════════
+//  DR GRID
+// ═══════════════════════════════════════════════
+async function renderDrGrid(filter='') {
+  const wrap = document.getElementById('dr-grid-wrap');
+  wrap.innerHTML='<div style="text-align:center;padding:28px;color:var(--muted)">⏳ Loading doctors...</div>';
+  todayDoctors = await getDrsForDate(selectedDate);
+  const filtered = todayDoctors.filter(dr=>
+    (dr.drName||'').toLowerCase().includes(filter.toLowerCase())||
+    (dr.speciality||'').toLowerCase().includes(filter.toLowerCase())
+  );
+  document.getElementById('dr-badge').textContent=filtered.length+' Doctors';
+  wrap.innerHTML='';
+  const grid=document.createElement('div');
+  grid.className='dr-grid';grid.id='dr-grid';wrap.appendChild(grid);
+
+  if (!filtered.length) {
+    const d=new Date(selectedDate+'T00:00:00');
+    grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${d.getDay()===0?'🔴':'🏥'}</div><div class="empty-text">${d.getDay()===0?'Sunday — Chutti ka din!':'Is din koi doctor assign nahi.<br>Admin se CSV upload karwao.'}</div></div>`;
+    updateSubmitBar(); return;
+  }
+
+  grid.innerHTML=filtered.map(dr=>{
+    const isSubmitted=allSubmissions.some(s=>s.drId===dr.id&&s.date===selectedDate);
+    const pend=pendingRx[dr.id];
+    const totalRx=pend?Object.values(pend.rx||{}).reduce((a,b)=>a+b,0):0;
+    const isSel=!!pend;
+    let cls='dr-card'+(isSubmitted?' submitted':isSel?' selected':'');
+    const chk=isSubmitted?'✓':isSel?'✏️':'';
+    const tag=isSubmitted?'<div class="dr-tag done">✓ Submit Ho Gaya</div>':isSel?'<div class="dr-tag pending">✏️ '+totalRx+' Rx</div>':'';
+    return '<div class="'+cls+'" onclick="openRxModal(\''+dr.id+'\')">' +
+      '<div class="dr-check">'+chk+'</div>' +
+      '<div class="dr-name">'+dr.drName+'</div>' +
+      '<div class="dr-spec">'+(dr.speciality||'')+'</div>' +
+      '<div class="dr-place">📍 '+(dr.place||'')+'&nbsp;·&nbsp;'+(dr.mrHq||dr.hq||'')+'</div>' +
+      tag +
+    '</div>';
+  }).join('');
+  updateSubmitBar();
+}
+function filterDrs(){renderDrGrid(document.getElementById('dr-search').value);}
+
+// ═══════════════════════════════════════════════
+//  RX MODAL
+// ═══════════════════════════════════════════════
+function openRxModal(drId) {
+  if (allSubmissions.some(s=>s.drId===drId&&s.date===selectedDate)) {
+    toast('Aaj ka data already submit ho chuka hai!','ℹ️'); return;
+  }
+  currentDrId=drId;
+  const dr=todayDoctors.find(d=>d.id===drId);
+  document.getElementById('modal-dr-name').textContent=dr.drName;
+  document.getElementById('modal-dr-sub').textContent=(dr.speciality||'')+' · '+(dr.place||'');
+  const ex=pendingRx[drId]||{rx:{},notes:''};
+  document.getElementById('modal-notes').value=ex.notes||'';
+  document.getElementById('product-rows').innerHTML=PRODUCTS.map(p=>{
+    const v=ex.rx[p.id]||0;
+    return '<div class="product-row">' +
+      '<div class="product-info"><div class="product-name">'+p.name+'</div><div class="product-brand">'+p.brand+'</div></div>' +
+      '<div class="rx-stepper">' +
+        '<button class="rx-btn" onclick="stepRx(\''+p.id+'\',-1)">−</button>' +
+        '<input class="rx-input" type="number" id="rx-'+p.id+'" value="'+v+'" min="0" max="999">' +
+        '<button class="rx-btn" onclick="stepRx(\''+p.id+'\',1)">+</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  document.getElementById('rx-modal').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function stepRx(pid,delta){const i=document.getElementById('rx-'+pid);i.value=Math.max(0,Math.min(999,parseInt(i.value||0)+delta));}
+function closeModal(){document.getElementById('rx-modal').classList.remove('open');document.body.style.overflow='';currentDrId=null;}
+function saveRx(){
+  const rx={};
+  PRODUCTS.forEach(p=>{const v=parseInt(document.getElementById('rx-'+p.id).value)||0;if(v>0)rx[p.id]=v;});
+  pendingRx[currentDrId]={rx,notes:document.getElementById('modal-notes').value.trim()};
+  closeModal(); renderDrGrid(document.getElementById('dr-search').value); updateSubmitBar();
+  toast('Rx save ho gaya! Submit se pehle review karo.');
+}
+
+// ═══════════════════════════════════════════════
+//  SUBMIT BAR
+// ═══════════════════════════════════════════════
+function updateSubmitBar(){
+  const bar=document.getElementById('submit-bar');
+  // Strictly check — only show on entry or review
+  const activePanel=document.querySelector('.panel.active');
+  const activePanelId = activePanel ? activePanel.id : '';
+  const show = (activePanelId==='panel-entry' || activePanelId==='panel-review');
+  bar.style.display = show ? 'flex' : 'none';
+  if(!show) return; // Don't update anything else if not visible
+
+  const count=Object.keys(pendingRx).length;
+  const totalRx=Object.values(pendingRx).reduce((a,d)=>a+Object.values(d.rx||{}).reduce((x,y)=>x+y,0),0);
+  document.getElementById('sb-sel').textContent=count+' doctor'+(count!==1?'s':'')+' ka data';
+  document.getElementById('sb-rx').textContent=totalRx+' Total Rx';
+  document.getElementById('sb-prog').style.width=todayDoctors.length?(count/todayDoctors.length*100)+'%':'0%';
+  const finalBtn=document.getElementById('btn-submit');
+  finalBtn.style.display = activePanelId==='panel-review' ? 'block' : 'none';
+  finalBtn.disabled=count===0;
+}
+
+// ═══════════════════════════════════════════════
+//  REVIEW
+// ═══════════════════════════════════════════════
+function renderReview(){
+  document.getElementById('review-date-lbl').textContent=fmtDate(selectedDate);
+  const ids=Array.from(new Set(Object.keys(pendingRx).concat(allSubmissions.filter(s=>s.date===selectedDate).map(s=>s.drId))));
+  let totalRx=0, rows='';
+  ids.forEach(drId=>{
+    const dr=todayDoctors.find(d=>d.id===drId);
+    const pend=pendingRx[drId];
+    const sub=allSubmissions.find(s=>s.drId===drId&&s.date===selectedDate);
+    const data=pend||sub; if(!data) return;
+    const rxData=data.rx||{};
+    const drTotal=Object.values(rxData).reduce((a,b)=>a+b,0); totalRx+=drTotal;
+    const pills=PRODUCTS.map(p=>{const v=rxData[p.id]||0;return '<span class="rx-pill '+(v>0?'':'zero')+'">'+p.name+': '+v+'</span>';}).join('');
+    const status=sub?'<span class="badge badge-green">✓ Submitted</span>':'<span class="badge badge-warn">⏳ Pending</span>';
+    const editBtn=pend?'<button class="btn-sec" style="padding:4px 10px;font-size:0.75rem" onclick="editRx(\''+drId+'\')">✏️</button>':'';
+    rows+='<tr><td style="font-weight:600">'+(dr?dr.drName:drId)+'</td><td>'+(dr?dr.speciality||'':'')+'</td><td>'+pills+'</td><td><strong>'+drTotal+'</strong></td><td style="font-size:0.75rem;color:var(--muted);max-width:120px">'+(data.notes||'—')+'</td><td>'+status+'</td><td>'+editBtn+'</td></tr>';
+  });
+  document.getElementById('review-tbody').innerHTML=rows||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Koi data nahi. Pehle Rx Entry karo.</td></tr>';
+  const pc=Object.keys(pendingRx).length;
+  const badge=document.getElementById('review-badge');
+  badge.textContent=pc>0?pc+' Pending':'Sab Submit ✓';
+  badge.className='badge '+(pc>0?'badge-warn':'badge-green');
+  const pt={};PRODUCTS.forEach(p=>{pt[p.id]=0;});
+  ids.forEach(drId=>{const data=pendingRx[drId]||allSubmissions.find(s=>s.drId===drId&&s.date===selectedDate);if(data)Object.entries(data.rx||{}).forEach(function(entry){var pid=entry[0], v=entry[1];pt[pid]=(pt[pid]||0)+v;});});
+  document.getElementById('review-stats').innerHTML=
+    '<div class="stat-card"><div class="stat-label">Doctors</div><div class="stat-val">'+ids.length+'</div></div>' +
+    '<div class="stat-card accent"><div class="stat-label">Total Rx</div><div class="stat-val">'+totalRx+'</div></div>' +
+    PRODUCTS.map(p=>'<div class="stat-card"><div class="stat-label">'+p.name+'</div><div class="stat-val">'+(pt[p.id]||0)+'</div></div>').join('');
+}
+function editRx(drId){showPanel('entry',document.querySelectorAll('.nav-item')[1]);setTimeout(()=>openRxModal(drId),300);}
+
+// ═══════════════════════════════════════════════
+//  FINAL SUBMIT → Firestore
+// ═══════════════════════════════════════════════
+async function finalSubmit(){
+  if(!Object.keys(pendingRx).length) return;
+  showLoading('Firebase mein save ho raha hai...');
+  const { collection, addDoc } = window._fbModules;
+  const u = window._currentUser;
+  const now = new Date().toISOString();
+  try {
+    for (var i = 0; i < Object.keys(pendingRx).length; i++) {
+      var drId = Object.keys(pendingRx)[i];
+      var data = pendingRx[drId];
+      const dr = todayDoctors.find(d=>d.id===drId);
+      await addDoc(collection(window._db,'submissions'), {
+        drId, drName: dr?dr.drName:drId,
+        advaitNo: dr?dr.advaitNo:'',
+        date: selectedDate,
+        mrCode: u.empCode, mrName: u.name, mrHq: u.hq,
+        tmCode: dr?dr.tmCode:'', tmName: dr?dr.tmName:'',
+        bmCode: dr?dr.bmCode:'131138',
+        zone: dr?dr.zone:'',
+        speciality: dr?dr.speciality:'',
+        place: dr?dr.place:'',
+        rx: data.rx, notes: data.notes||'',
+        submittedAt: now, finalized: true
+      });
+    }
+    pendingRx={};
+    await loadSubmissions();
+    hideLoading();
+    toast('🎉 Sab data submit ho gaya!','🎉');
+    updateSubmitBar(); await renderDrGrid(); renderDashboard();
+    showPanel('dashboard',document.querySelectorAll('.nav-item')[0]);
+  } catch(e) { hideLoading(); toast('❌ Error: '+e.message,'❌'); }
+}
+
+// ═══════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════
+function renderDashboard(){
+  const today=todayStr();
+  const todayList=allSubmissions.filter(s=>s.date===today);
+  const totalRx=allSubmissions.reduce((a,s)=>a+Object.values(s.rx||{}).reduce((x,y)=>x+y,0),0);
+  const todayRx=todayList.reduce((a,s)=>a+Object.values(s.rx||{}).reduce((x,y)=>x+y,0),0);
+  document.getElementById('dash-stats').innerHTML=
+    '<div class="stat-card accent"><div class="stat-label">Aaj Doctors</div><div class="stat-val">'+todayList.length+'</div></div>' +
+    '<div class="stat-card green"><div class="stat-label">Aaj Rx</div><div class="stat-val">'+todayRx+'</div></div>' +
+    '<div class="stat-card"><div class="stat-label">Total Drs</div><div class="stat-val">'+Array.from(new Set(allSubmissions.map(s=>s.drId))).size+'</div></div>' +
+    '<div class="stat-card"><div class="stat-label">Total Rx</div><div class="stat-val">'+totalRx+'</div></div>';
+  document.getElementById('dash-badge').textContent=todayList.length+' Doctors';
+  const el=document.getElementById('dash-list');
+  if(!todayList.length){el.innerHTML='<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Aaj koi submission nahi.<br>Rx Entry mein jao!</div></div>';return;}
+  el.innerHTML=todayList.map(s=>{
+    const total=Object.values(s.rx||{}).reduce((a,b)=>a+b,0);
+    const prods=Object.entries(s.rx||{}).filter(function(entry){return entry[1]>0;}).map(function(entry){var pid=entry[0], v=entry[1];var p=PRODUCTS.find(x=>x.id===pid);return p?p.name+':'+v:'';}).join(' · ');
+    return '<div class="history-row"><div class="hr-date">'+s.drName+'</div><div class="hr-dr">'+(s.mrHq||'')+'</div><div class="hr-prod">'+(prods||'No Rx')+'</div><div class="hr-rx">'+total+'</div></div>';
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  HISTORY
+// ═══════════════════════════════════════════════
+function renderHistory(filter=''){
+  let list=allSubmissions.slice().sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt));
+  if(filter)list=list.filter(s=>(s.drName||'').toLowerCase().includes(filter.toLowerCase())||s.date.includes(filter));
+  const el=document.getElementById('history-list');
+  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Koi history nahi.</div></div>';return;}
+  el.innerHTML=list.map(s=>{
+    const total=Object.values(s.rx||{}).reduce((a,b)=>a+b,0);
+    const prods=Object.entries(s.rx||{}).filter(function(entry){return entry[1]>0;}).map(function(entry){var pid=entry[0], v=entry[1];var p=PRODUCTS.find(x=>x.id===pid);return p?p.name+':'+v:'';}).join(' · ');
+    return '<div class="history-row">' +
+      '<div class="hr-date">'+fmtDate(s.date)+'</div>' +
+      '<div class="hr-dr">'+(s.drName||'?')+'<div style="font-size:0.7rem;color:var(--muted)">'+(s.mrName||'')+' · '+(s.mrHq||'')+'</div></div>' +
+      '<div class="hr-prod">'+(prods||'No Rx')+'</div>' +
+      '<div class="hr-rx">'+total+' Rx</div>' +
+    '</div>';
+  }).join('');
+}
+function filterHistory(){renderHistory(document.getElementById('hist-search').value);}
+
+// ═══════════════════════════════════════════════
+//  TEAM REPORT (TM sees team, BM sees all)
+// ═══════════════════════════════════════════════
+function renderTeamReport(){
+  const now=new Date();
+  const monthName=now.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  document.getElementById('team-month-lbl').textContent=monthName;
+
+  const mrMap={};
+  allSubmissions.forEach(s=>{
+    const k=s.mrCode;
+    if(!mrMap[k]) mrMap[k]={name:s.mrName||k,hq:s.mrHq||'',drs:0,rx:0,prodTotals:{}};
+    mrMap[k].drs++;
+    mrMap[k].rx+=Object.values(s.rx||{}).reduce((a,b)=>a+b,0);
+    PRODUCTS.forEach(p=>{mrMap[k].prodTotals[p.id]=(mrMap[k].prodTotals[p.id]||0)+(s.rx&&s.rx[p.id]||0);});
+  });
+
+  const totalDrs=Object.values(mrMap).reduce((a,m)=>a+m.drs,0);
+  const totalRx=Object.values(mrMap).reduce((a,m)=>a+m.rx,0);
+  document.getElementById('team-stats').innerHTML=
+    '<div class="stat-card accent"><div class="stat-label">Total Doctors</div><div class="stat-val">'+totalDrs+'</div></div>' +
+    '<div class="stat-card green"><div class="stat-label">Total Rx</div><div class="stat-val">'+totalRx+'</div></div>' +
+    '<div class="stat-card"><div class="stat-label">MRs Active</div><div class="stat-val">'+Object.keys(mrMap).length+'</div></div>' +
+    PRODUCTS.map(p=>{var t=Object.values(mrMap).reduce((a,m)=>a+(m.prodTotals[p.id]||0),0);return '<div class="stat-card"><div class="stat-label">'+p.name+'</div><div class="stat-val">'+t+'</div></div>';}).join('');
+
+  if(!Object.keys(mrMap).length){
+    document.getElementById('team-mr-table').innerHTML='<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Is month koi data nahi.</div></div>';return;
+  }
+  document.getElementById('team-mr-table').innerHTML=
+    '<table style="width:100%;border-collapse:collapse;font-size:0.84rem">' +
+      '<tr style="background:var(--surface)">' +
+        '<th style="padding:9px 12px;text-align:left;font-size:0.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">MR</th>' +
+        '<th style="padding:9px 12px;font-size:0.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">HQ</th>' +
+        '<th style="padding:9px 12px;text-align:center;font-size:0.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">Doctors</th>' +
+        PRODUCTS.map(p=>'<th style="padding:9px 8px;text-align:center;font-size:0.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">'+p.name+'</th>').join('') +
+        '<th style="padding:9px 12px;text-align:center;font-size:0.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">Total Rx</th>' +
+      '</tr>' +
+      Object.entries(mrMap).map(function(codeAndM){var code=codeAndM[0], m=codeAndM[1];return
+      '<tr style="border-bottom:1px solid var(--border)">' +
+        '<td style="padding:9px 12px;font-weight:600">'+m.name+'</td>' +
+        '<td style="padding:9px 12px;color:var(--muted)">'+m.hq+'</td>' +
+        '<td style="padding:9px 12px;text-align:center"><strong>'+m.drs+'</strong></td>' +
+        PRODUCTS.map(p=>'<td style="padding:9px 8px;text-align:center">'+(m.prodTotals[p.id]||0)+'</td>').join('') +
+        '<td style="padding:9px 12px;text-align:center;font-family:\'Syne\',sans-serif;font-weight:800;color:var(--accent)">'+m.rx+'</td>' +
+      '</tr>';}).join('') +
+    '</table>';
+}
+
+// ═══════════════════════════════════════════════
+//  ADMIN PANEL (BM only)
+// ═══════════════════════════════════════════════
+async function renderAdmin(){
+  const u=window._currentUser;
+  if(u.role!=='admin'&&u.desig!=='BM'){
+    document.getElementById('admin-grid').innerHTML='<div style="padding:20px;color:var(--muted)">❌ Admin access nahi hai.</div>';return;
+  }
+  
+  const { collection, getDocs } = window._fbModules;
+  
+  // Fetch team profiles for admin view
+  let teamProfiles = [];
+  try {
+    const tpSnap = await getDocs(collection(window._db,'users'));
+    teamProfiles = tpSnap.docs.map(d=>d.data()).filter(u=>u.empCode !== window._currentUser.empCode);
+  } catch(e){ console.error(e); }
+  let users=[],doctors=[];
+  try {
+    const us=await getDocs(collection(window._db,'users')); users=us.docs.map(d=>d.data());
+    const ds=await getDocs(collection(window._db,'doctors')); doctors=ds.docs.map(d=>d.data());
+  } catch(e){console.error(e);}
+
+  const today=todayStr();
+  const todaySubs=allSubmissions.filter(s=>s.date===today);
+  const todayRx=todaySubs.reduce((a,s)=>a+Object.values(s.rx||{}).reduce((x,y)=>x+y,0),0);
+  const totalRx=allSubmissions.reduce((a,s)=>a+Object.values(s.rx||{}).reduce((x,y)=>x+y,0),0);
+
+  document.getElementById('admin-stats').innerHTML=
+    '<div class="stat-card accent"><div class="stat-label">Aaj Submissions</div><div class="stat-val">'+todaySubs.length+'</div></div>' +
+    '<div class="stat-card green"><div class="stat-label">Aaj Rx</div><div class="stat-val">'+todayRx+'</div></div>' +
+    '<div class="stat-card"><div class="stat-label">All Time Rx</div><div class="stat-val">'+totalRx+'</div></div>' +
+    '<div class="stat-card"><div class="stat-label">Team Size</div><div class="stat-val">'+users.length+'</div><div class="stat-sub">registered</div></div>' +
+    '<div class="stat-card"><div class="stat-label">Doctors in DB</div><div class="stat-val">'+doctors.length+'</div></div>';
+
+  // Today MR performance
+  const mrPerf={};
+  todaySubs.forEach(s=>{
+    if(!mrPerf[s.mrCode]) mrPerf[s.mrCode]={name:s.mrName||s.mrCode,hq:s.mrHq,drs:0,rx:0};
+    mrPerf[s.mrCode].drs++;
+    mrPerf[s.mrCode].rx+=Object.values(s.rx||{}).reduce((a,b)=>a+b,0);
+  });
+
+  // HQ summary
+  const hqPerf={};
+  todaySubs.forEach(s=>{
+    if(!hqPerf[s.mrHq]) hqPerf[s.mrHq]={drs:0,rx:0};
+    hqPerf[s.mrHq].drs++;
+    hqPerf[s.mrHq].rx+=Object.values(s.rx||{}).reduce((a,b)=>a+b,0);
+  });
+
+  // Product totals
+  const pt={};PRODUCTS.forEach(p=>{pt[p.id]=0;});
+  allSubmissions.forEach(s=>Object.entries(s.rx||{}).forEach(([pid,v])=>{pt[pid]=(pt[pid]||0)+v;}));
+
+  document.getElementById('admin-grid').innerHTML=
+    '<div class="admin-card" style="grid-column:1/-1">' +
+      '<h3>👥 Aaj MR-wise ('+fmtDate(today)+')</h3>' +
+      (!Object.keys(mrPerf).length?'<div style="color:var(--muted);font-size:0.84rem">Aaj koi submission nahi.</div>':
+      '<table style="width:100%;border-collapse:collapse;font-size:0.84rem">' +
+        '<tr style="background:var(--surface)">' +
+          '<th style="padding:9px;text-align:left;font-size:0.7rem;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">MR</th>' +
+          '<th style="padding:9px;font-size:0.7rem;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">HQ</th>' +
+          '<th style="padding:9px;text-align:center;font-size:0.7rem;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">Drs</th>' +
+          '<th style="padding:9px;text-align:center;font-size:0.7rem;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">Total Rx</th>' +
+        '</tr>' +
+        Object.entries(mrPerf).map(function(mAndIndex){var m=mAndIndex[1];return
+        '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:9px;font-weight:600">'+m.name+'</td>' +
+          '<td style="padding:9px;color:var(--muted)">'+m.hq+'</td>' +
+          '<td style="padding:9px;text-align:center"><strong>'+m.drs+'</strong></td>' +
+          '<td style="padding:9px;text-align:center;font-weight:800;color:var(--accent)">'+m.rx+'</td>' +
+        '</tr>';}).join('') +
+      '</table>') +
+    '</div>' +
+    '<div class="admin-card">' +
+      '<h3>📍 HQ-wise (Aaj)</h3>' +
+      (!Object.keys(hqPerf).length?'<div style="color:var(--muted);font-size:0.84rem">Data nahi</div>':
+      Object.entries(hqPerf).map(function(hqAndD){var hq=hqAndD[0], d=hqAndD[1];return
+      '<div class="dr-list-item">' +
+        '<div class="dr-avatar" style="background:linear-gradient(135deg,var(--accent2),#00a87a)">'+hq.charAt(0)+'</div>' +
+        '<div class="item-name">'+hq+'</div>' +
+        '<div style="text-align:right"><div style="font-weight:700;color:var(--accent)">'+d.rx+' Rx</div><div style="font-size:0.7rem;color:var(--muted)">'+d.drs+' drs</div></div>' +
+      '</div>';}).join('')) +
+    '</div>' +
+    '<div class="admin-card">' +
+      '<h3>📦 Products (All Time)</h3>';
+      PRODUCTS.map(p=>'<div class="dr-list-item"><div class="dr-avatar">'+p.id.slice(0,2)+'</div><div class="item-name">'+p.name+'<div style="font-size:0.7rem;color:var(--muted)">'+p.brand+'</div></div><div style="font-family:\'Syne\',sans-serif;font-weight:800">'+(pt[p.id]||0)+'</div></div>').join('') +
+    '</div>' +
+    '<div class="admin-card" style="grid-column:1/-1">' +
+      '<h3>👥 Team Profiles</h3>' +
+      (teamProfiles.length===0
+        ? '<div style="color:var(--muted);font-size:0.84rem">Members ne profile fill karna hai pehle.</div>'
+        : ('<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.82rem">' +
+          '<tr style="background:var(--surface)">' +
+          '<th style="padding:8px 10px;text-align:left;font-size:0.65rem;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">Name / Code</th>' +
+          '<th style="padding:8px 10px;text-align:left;font-size:0.65rem;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">HQ</th>' +
+          '<th style="padding:8px 10px;text-align:left;font-size:0.65rem;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">DOB</th>' +
+          '<th style="padding:8px 10px;text-align:left;font-size:0.65rem;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">Joining</th>' +
+          '<th style="padding:8px 10px;text-align:left;font-size:0.65rem;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">Marriage</th>' +
+          '<th style="padding:8px 10px;text-align:left;font-size:0.65rem;color:var(--muted);text-transform:uppercase;border-bottom:2px solid var(--border)">Mobile</th>' +
+          '</tr>' +
+          teamProfiles.map(function(tp){
+            return '<tr style="border-bottom:1px solid var(--border)">' +
+            '<td style="padding:8px 10px;font-weight:600">' + (tp.name||'—') + '<div style="font-size:0.68rem;color:var(--muted)">' + (tp.empCode||'') + ' · ' + (tp.desig||'') + '</div></td>' +
+            '<td style="padding:8px 10px;color:var(--muted);font-size:0.8rem">' + (tp.hq||'—') + '</td>' +
+            '<td style="padding:8px 10px;color:var(--muted);font-size:0.8rem">' + (tp.dob||'—') + '</td>' +
+            '<td style="padding:8px 10px;color:var(--muted);font-size:0.8rem">' + (tp.doj||'—') + '</td>' +
+            '<td style="padding:8px 10px;color:var(--muted);font-size:0.8rem">' + (tp.dom||'—') + '</td>' +
+            '<td style="padding:8px 10px;color:var(--muted);font-size:0.8rem">' + (tp.mobile||'—') + '</td>' +
+            '</tr>';
+          }).join('') +
+          '</table></div>')
+      ) +
+    '</div>';
+}
+
+// ═══════════════════════════════════════════════
+//  CSV UPLOAD — Reads your Ghaziabad_Region_Rx.csv format
+//  Columns: Zone, BM Code, BM HQ, TM Code, TM Name, TM HQ,
+//           MR Code, MR Name, MR HQ, Advait No, Doctor Name,
+//           Specialty, Place, Week Days, 1..31
+// ═══════════════════════════════════════════════
+async function uploadCSV(input) {
+  const file=input.files[0]; if(!file) return;
+  const text=await file.text();
+  const lines=text.trim().split('\n');
+  if(lines.length<2){alert('CSV mein data nahi!');return;}
+
+  const { collection, addDoc } = window._fbModules;
+  const resultEl=document.getElementById('upload-result');
+  resultEl.innerHTML='<div style="padding:10px;color:var(--muted)">⏳ Upload ho raha hai...</div>';
+
+  let success=0,failed=0;
+  for(let i=1;i<lines.length;i++){
+    const row=lines[i].split(',').map(v=>v.trim().replace(/\r/,''));
+    if(row.length<14||!row[10]) {failed++;continue;} // Must have at least doctor name
+
+    // Which weekday is this doctor visited
+    const weekDayRaw=(row[13]||'').trim();
+    const weekDayKey=DAY_MAP[weekDayRaw]||null;
+    if(!weekDayKey){failed++;continue;} // Skip if no valid weekday
+
+    // Build day flags — weekday assignment from "Week Days" column
+    // Saturday is conditional (1st/3rd week only per company rule)
+    const dayFlags={sun:false,mon:false,tue:false,wed:false,thu:false,fri:false,sat:false};
+    dayFlags[weekDayKey]=true;
+
+    try{
+      await addDoc(collection(window._db,'doctors'),{
+        zone:     row[0]||'',
+        bmCode:   row[1]||'',
+        bmHq:     row[2]||'',
+        tmCode:   row[3]||'',
+        tmName:   row[4]||'',
+        tmHq:     row[5]||'',
+        mrCode:   row[6]||'',   // KEY for MR login filter
+        mrName:   row[7]||'',
+        mrHq:     row[8]||'',
+        advaitNo: row[9]||'',   // Doctor's unique ID (NOT empCode)
+        drName:   row[10]||'',
+        speciality:row[11]||'',
+        place:    row[12]||'',
+        weekDay:  weekDayRaw,    // e.g. "Monday"
+        // Day flags for filtering
+        sun: dayFlags.sun, mon: dayFlags.mon, tue: dayFlags.tue,
+        wed: dayFlags.wed, thu: dayFlags.thu, fri: dayFlags.fri, sat: dayFlags.sat,
+        uploadedAt: new Date().toISOString()
+      });
+      success++;
+    } catch(e){console.error('Row',i,e);failed++;}
+  }
+
+  resultEl.innerHTML = '<div style="padding:10px;background:#E6FAF5;border-radius:10px;margin-top:8px;font-size:0.84rem">' +
+    '✅ <strong>' + success + ' doctors</strong> upload ho gaye!' +
+    (failed ? '<br>⚠️ ' + failed + ' rows skip (week day missing ya format issue)' : '') +
+    '</div>';
+  input.value='';
+  toast(success + ' doctors database mein add!','📤');
+}
+
+// ═══════════════════════════════════════════════
+//  EXPORT FUNCTIONS
+// ═══════════════════════════════════════════════
+function getMonthRange(half){
+  const now=new Date();
+  const yr=now.getFullYear(), mo=String(now.getMonth()+1).padStart(2,'0');
+  const start=half==='1-15'?yr+'-'+mo+'-01':yr+'-'+mo+'-16';
+  const end  =half==='1-15'?yr+'-'+mo+'-15':yr+'-'+mo+'-31';
+  return {start,end};
+}
+
+function filterByRange(subs,range){
+  if(!range) return subs;
+  const {start,end}=getMonthRange(range);
+  return subs.filter(s=>s.date>=start&&s.date<=end);
+}
+
+function buildExportRows(subs, title){
+  // Header
+  const header=['Date','MR Code','MR Name','MR HQ','TM Code','TM Name','Doctor Name','Advait No','Speciality','Place',...PRODUCTS.map(p=>p.name),'Total Rx','Notes'];
+  const rows=[header];
+  subs.sort((a,b)=>a.date.localeCompare(b.date)||a.mrCode.localeCompare(b.mrCode));
+  subs.forEach(s=>{
+    const pv=PRODUCTS.map(p=>s.rx?.[p.id]||0);
+    const tot=pv.reduce((a,b)=>a+b,0);
+    rows.push([s.date,s.mrCode||'',s.mrName||'',s.mrHq||'',s.tmCode||'',s.tmName||'',s.drName||'',s.advaitNo||'',s.speciality||'',s.place||'',...pv,tot,s.notes||'']);
+  });
+  return rows;
+}
+
+function buildFortnightlyRows(subs){
+  // Build a structured export: Doctor rows with 1-15 columns and 16-31 columns
+  const now=new Date();
+  const yr=now.getFullYear(), mo=String(now.getMonth()+1).padStart(2,'0');
+  const monthLabel=now.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+
+  // Group by mrCode + drName
+  const drMap={};
+  subs.forEach(s=>{
+    const k=s.mrCode+'__'+(s.advaitNo||s.drName);
+    if(!drMap[k]) drMap[k]={mrCode:s.mrCode,mrName:s.mrName||'',mrHq:s.mrHq||'',tmCode:s.tmCode||'',tmName:s.tmName||'',drName:s.drName||'',advaitNo:s.advaitNo||'',speciality:s.speciality||'',place:s.place||'',p1:{},p2:{}};
+    const day=parseInt(s.date.split('-')[2]);
+    const half=day<=15?'p1':'p2';
+    PRODUCTS.forEach(p=>{drMap[k][half][p.id]=(drMap[k][half][p.id]||0)+(s.rx?.[p.id]||0);});
+  });
+
+  // Header row 1: Month name spanning
+  const prodCols=PRODUCTS.length;
+  const r1=['','','','','','','','','',monthLabel,...Array((prodCols+1)*2).fill('')];
+  // Header row 2
+  const r2=['MR Code','MR Name','HQ','TM Code','TM Name','Advait No','Doctor','Speciality','Place','1 to 15',...Array(prodCols).fill(''),'','16 to 31',...Array(prodCols).fill(''),''];
+  // Header row 3
+  const r3=['','','','','','','','','','',...PRODUCTS.map(p=>p.name),'Total',...PRODUCTS.map(p=>p.name),'Total','Grand Total'];
+
+  const rows=[r1,r2,r3];
+  Object.values(drMap).sort((a,b)=>a.mrCode.localeCompare(b.mrCode)||a.drName.localeCompare(b.drName)).forEach(d=>{
+    const p1v=PRODUCTS.map(p=>d.p1[p.id]||0);
+    const p2v=PRODUCTS.map(p=>d.p2[p.id]||0);
+    const t1=p1v.reduce((a,b)=>a+b,0);
+    const t2=p2v.reduce((a,b)=>a+b,0);
+    rows.push([d.mrCode,d.mrName,d.mrHq,d.tmCode,d.tmName,d.advaitNo,d.drName,d.speciality,d.place,...p1v,t1,...p2v,t2,t1+t2]);
+  });
+  return rows;
+}
+
+function downloadCSV(rows, filename){
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV downloaded!','📊');
+}
+
+// History export (MR: own data, TM/BM: team data)
+function exportHistory(){
+  const rows=buildExportRows(allSubmissions,'History');
+  downloadCSV(rows,'RxTrack_History_'+todayStr()+'.csv');
+}
+
+// TM exports
+function exportTeamFortnightly(half){
+  const subs=filterByRange(allSubmissions,half);
+  const rows=buildFortnightlyRows(subs);
+  downloadCSV(rows,'RxTrack_Team_'+half+'_'+todayStr()+'.csv');
+}
+function exportTeamMonthly(){
+  const rows=buildFortnightlyRows(allSubmissions);
+  downloadCSV(rows,'RxTrack_Team_Monthly_'+todayStr()+'.csv');
+}
+
+// Admin (BM) exports
+function exportAdminFortnightly(half){
+  const subs=filterByRange(allSubmissions,half);
+  const rows=buildFortnightlyRows(subs);
+  downloadCSV(rows,'RxTrack_Admin_'+half+'_'+todayStr()+'.csv');
+}
+function exportAdminMonthly(){
+  const rows=buildFortnightlyRows(allSubmissions);
+  downloadCSV(rows,'RxTrack_Admin_Monthly_'+todayStr()+'.csv');
+}
+
+// ═══════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════
+async function showPanel(id,el){
+  // Hide submit bar immediately before switching panels
+  const bar=document.getElementById('submit-bar');
+  if(bar) bar.style.display='none';
+
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.mbn-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  if(el) el.classList.add('active');
+  // Sync mobile bottom nav
+  const mbn = document.getElementById('mbn-'+id);
+  if(mbn) mbn.classList.add('active');
+  // Close more menu if open
+  const mm=document.getElementById('mobile-more-menu');
+  if(mm) mm.style.display='none';
+  const titles={dashboard:'Dashboard',entry:'Rx Entry',review:'Review & Submit',history:'History',team:'Team Report',admin:'Admin Panel'};
+  document.getElementById('topbar-title').textContent=titles[id]||id;
+  if(id==='entry'){buildDateStrip();await renderDrGrid();updateSubmitBar();}
+  if(id==='review'){renderReview();updateSubmitBar();}
+  if(id==='history')renderHistory();
+  if(id==='profile')loadProfile();
+  if(id==='team')renderTeamReport();
+  if(id==='admin')await renderAdmin();
+  if(id==='dashboard')renderDashboard();
+  closeSidebar();
+}
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('mobile-overlay').classList.toggle('open');
+}
+
+// ── PASSWORD TOGGLE ──
+function togglePass(inputId, btnId){
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if(inp.type==='password'){
+    inp.type='text';
+    btn.textContent='🙈';
+  } else {
+    inp.type='password';
+    btn.textContent='👁️';
+  }
+}
+
+// ── AVATAR MENU ──
+function toggleAvatarMenu(){
+  const menu = document.getElementById('avatar-menu');
+  if(!menu) return;
+  const isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+  // Close on outside click
+  if(!isOpen){
+    setTimeout(()=>{
+      document.addEventListener('click', function closeMenu(e){
+        if(!menu.contains(e.target) && e.target.id !== 'topbar-avatar'){
+          menu.style.display='none';
+          document.removeEventListener('click', closeMenu);
+        }
+      });
+    }, 10);
+  }
+}
+
+// ── PROFILE ──
+function loadProfile(){
+  const u = window._currentUser;
+  if(!u) return;
+  document.getElementById('pf-name').value    = u.name||'';
+  document.getElementById('pf-empcode').value = u.empCode||'';
+  document.getElementById('pf-desig').value   = u.desig||'';
+  document.getElementById('pf-hq').value      = u.hq||'';
+  document.getElementById('pf-dob').value     = u.dob||'';
+  document.getElementById('pf-doj').value     = u.doj||'';
+  document.getElementById('pf-mobile').value  = u.mobile||'';
+  document.getElementById('pf-personal-email').value = u.personalEmail||'';
+  if(document.getElementById('pf-dom')) document.getElementById('pf-dom').value = u.dom||'';
+  if(document.getElementById('pf-anniversary')) document.getElementById('pf-anniversary').value = u.anniversary||'';
+  // Photo
+  const initEl = document.getElementById('profile-photo-initial');
+  const imgEl  = document.getElementById('profile-photo-img');
+  if(initEl) initEl.textContent = (u.name||'?').charAt(0).toUpperCase();
+  if(u.photoURL && imgEl){
+    imgEl.src = u.photoURL;
+    imgEl.style.display = 'block';
+    if(initEl) initEl.style.display = 'none';
+  }
+  // Update avatar menu name
+  const menuName = document.getElementById('avatar-menu-name');
+  const menuRole = document.getElementById('avatar-menu-role');
+  if(menuName) menuName.textContent = u.name||'';
+  if(menuRole) menuRole.textContent = (u.desig||'') + ' · ' + (u.hq||'');
+}
+
+async function saveProfile(){
+  const u = window._currentUser;
+  if(!u) return;
+  const { doc, setDoc } = window._fbModules;
+  showLoading('Profile save ho raha hai...');
+  try {
+    const updates = {
+      ...u,
+      dob: document.getElementById('pf-dob').value||'',
+      doj: document.getElementById('pf-doj').value||'',
+      mobile: document.getElementById('pf-mobile').value||'',
+      personalEmail: document.getElementById('pf-personal-email').value||'',
+      dom: document.getElementById('pf-dom')?.value||'',
+      anniversary: document.getElementById('pf-anniversary')?.value||'',
+    };
+    await setDoc(doc(window._db,'users',u.uid), updates);
+    window._currentUser = { ...updates };
+    hideLoading();
+    toast('Profile save ho gaya! ✅');
+  } catch(e){
+    hideLoading();
+    toast('Error: '+e.message,'❌');
+  }
+}
+
+function handleProfilePhoto(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 2*1024*1024){ toast('Photo 2MB se chhoti honi chahiye','⚠️'); return; }
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    const imgEl  = document.getElementById('profile-photo-img');
+    const initEl = document.getElementById('profile-photo-initial');
+    const avatarEl = document.getElementById('topbar-avatar');
+    imgEl.src = e.target.result;
+    imgEl.style.display = 'block';
+    if(initEl) initEl.style.display = 'none';
+    // Save photo to user object
+    if(window._currentUser) window._currentUser.photoURL = e.target.result;
+    // Update topbar avatar too
+    if(avatarEl){
+      avatarEl.innerHTML = '<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+    }
+    toast('Photo set ho gayi! Save dabao.','📷');
+  };
+  reader.readAsDataURL(file);
+}
+
+// Mobile bottom nav
+function mbnNav(id, btn){
+  // Hide submit bar immediately
+  const bar=document.getElementById('submit-bar');
+  if(bar) bar.style.display='none';
+  // Update bottom nav active state
+  document.querySelectorAll('.mbn-item').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  else {
+    const b = document.getElementById('mbn-'+id);
+    if(b) b.classList.add('active');
+  }
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const desktopNav = document.querySelector('.nav-item[onclick*="'+id+'"]');
+  if(desktopNav) desktopNav.classList.add('active');
+  showPanel(id, null);
+}
+
+function toggleMobileMenu(){
+  const menu = document.getElementById('mobile-more-menu');
+  menu.style.display = menu.style.display==='none' ? 'block' : 'none';
+}
+
+// Update mobile nav visibility based on role
+function updateMobileNav(){
+  const u = window._currentUser;
+  if(!u) return;
+  const isBM = u.desig==='BM';
+  const isTM = u.desig==='TM'||u.role==='tm';
+  if(isBM||isTM){
+    document.getElementById('mbn-team-wrap').style.display='block';
+  }
+  if(isBM){
+    document.getElementById('mbn-admin-wrap').style.display='block';
+  }
+}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('mobile-overlay').classList.remove('open');}
+
+// ══ PROFILE SLIDE PANEL ══
+function openProfileSlide(){
+  const u = window._currentUser;
+  if(!u) return;
+  // Load data
+  if(document.getElementById('sp-name')) document.getElementById('sp-name').value = u.name||'';
+  if(document.getElementById('sp-empcode')) document.getElementById('sp-empcode').value = u.empCode||'';
+  if(document.getElementById('sp-role')) document.getElementById('sp-role').value = (u.desig||'') + ' · ' + (u.hq||'');
+  if(document.getElementById('sp-dob')) document.getElementById('sp-dob').value = u.dob||'';
+  if(document.getElementById('sp-doj')) document.getElementById('sp-doj').value = u.doj||'';
+  if(document.getElementById('sp-dom')) document.getElementById('sp-dom').value = u.dom||'';
+  if(document.getElementById('sp-anniversary')) document.getElementById('sp-anniversary').value = u.anniversary||'';
+  if(document.getElementById('sp-mobile')) document.getElementById('sp-mobile').value = u.mobile||'';
+  if(document.getElementById('sp-personal-email')) document.getElementById('sp-personal-email').value = u.personalEmail||'';
+  // Photo
+  const init = document.getElementById('slide-photo-initial');
+  const img  = document.getElementById('slide-photo-img');
+  if(init) init.textContent = (u.name||'?').charAt(0).toUpperCase();
+  if(u.photoURL && img){ img.src=u.photoURL; img.style.display='block'; if(init) init.style.display='none'; }
+  // Version
+  const vl = document.getElementById('sp-version-lbl');
+  if(vl) vl.textContent = (window._appVersion||'v2.0') + ' | Developed by Shivesh Gupta';
+  // Open
+  document.getElementById('profile-slide').classList.add('open');
+  document.getElementById('profile-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeProfileSlide(){
+  document.getElementById('profile-slide').classList.remove('open');
+  document.getElementById('profile-overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+async function saveSlideProfile(){
+  const u = window._currentUser;
+  if(!u) return;
+  const { doc, setDoc } = window._fbModules;
+  showLoading('Profile save ho raha hai...');
+  try {
+    const updates = Object.assign({}, u, {
+      dob: (document.getElementById('sp-dob')||{value:''}).value||'',
+      doj: (document.getElementById('sp-doj')||{value:''}).value||'',
+      dom: (document.getElementById('sp-dom')||{value:''}).value||'',
+      anniversary: (document.getElementById('sp-anniversary')||{value:''}).value||'',
+      mobile: (document.getElementById('sp-mobile')||{value:''}).value||'',
+      personalEmail: (document.getElementById('sp-personal-email')||{value:''}).value||'',
+    });
+    await setDoc(doc(window._db,'users',u.uid), updates);
+    window._currentUser = Object.assign({}, u, updates);
+    hideLoading();
+    toast('Profile save ho gaya! ✅');
+    closeProfileSlide();
+  } catch(e){ hideLoading(); toast('Error: '+e.message,'❌'); }
+}
+function handleSlidePhoto(input){
+  const file=input.files[0]; if(!file) return;
+  if(file.size>2*1024*1024){ toast('Photo 2MB se chhoti honi chahiye','⚠️'); return; }
+  const reader=new FileReader();
+  reader.onload=(e)=>{
+    const img=document.getElementById('slide-photo-img');
+    const init=document.getElementById('slide-photo-initial');
+    const av=document.getElementById('topbar-avatar');
+    if(img){img.src=e.target.result;img.style.display='block';}
+    if(init) init.style.display='none';
+    if(window._currentUser) window._currentUser.photoURL=e.target.result;
+    if(av) av.innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+    toast('Photo set ho gayi! Save dabao.','📷');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ══ AUTO VERSION SYSTEM ══
+(function(){
+  const BUILD_DATE = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'});
+  // Increment patch on each new session load
+  let stored = localStorage.getItem('rxtrack_build')||'';
+  let patch = parseInt(localStorage.getItem('rxtrack_patch')||'0');
+  if(stored !== BUILD_DATE){
+    patch++;
+    localStorage.setItem('rxtrack_patch', patch);
+    localStorage.setItem('rxtrack_build', BUILD_DATE);
+  }
+  const version = 'v2.0.' + patch;
+  document.querySelectorAll('#app-version-display,[data-version-display]').forEach(el=>{
+    el.textContent = version;
+  });
+  window._appVersion = version;
+})();
+</script>
+</body>
+</html>
